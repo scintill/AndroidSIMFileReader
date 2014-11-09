@@ -26,4 +26,9 @@ interface IRilExtender {
     byte[] iccIOForApp(int command, int fileId, String path, int p1, int p2, int p3, String data, String pin2, String aid);
 
     boolean pingRilExtender();
+
+    long getBirthDate();
+
+    int getVersion();
+
 }

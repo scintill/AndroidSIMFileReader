@@ -41,14 +41,16 @@ import java.lang.reflect.InvocationTargetException;
  */
 public class RilExtender extends IRilExtender.Stub {
     private static final String TAG = "RilExtender";
-
     private static final String DESCRIPTOR = IRilExtender.class.getName();
+    private static final int VERSION = 2;
 
     public static boolean onPhoneServiceTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
         //Log.d(TAG, "onTransact " + code + " " + android.os.Process.myPid());
         switch(code) {
             case TRANSACTION_iccIOForApp:
             case TRANSACTION_pingRilExtender:
+            case TRANSACTION_getBirthDate:
+            case TRANSACTION_getVersion:
                 // Our transaction codes overlap with the original phone service -- is
                 // the caller trying to reach us?
                 data.readInt();
@@ -163,6 +165,12 @@ public class RilExtender extends IRilExtender.Stub {
         return true;
     }
 
+    @Override
+    public long getBirthDate() { return mBirthDate; }
+
+    @Override
+    public int getVersion() { return VERSION; }
+
     private static RilExtender instance;
     private static RilExtender getInstance() {
         if (instance == null) {
@@ -187,6 +195,7 @@ public class RilExtender extends IRilExtender.Stub {
     }
 
     private Context mContext;
+    private long mBirthDate;
 
     private RilExtender() {
         final Object oSignal = new Object();
@@ -214,5 +223,7 @@ public class RilExtender extends IRilExtender.Stub {
         } catch (InterruptedException e) {
             Log.e(TAG, "Error finding context", e);
         }
+
+        mBirthDate = System.currentTimeMillis();
     }
 }

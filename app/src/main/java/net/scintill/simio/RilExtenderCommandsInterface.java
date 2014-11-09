@@ -277,6 +277,14 @@ public class RilExtenderCommandsInterface implements CommandsInterface {
         CMDProcessor.runSuCommand("chown "+phoneUid+":"+phoneUid+" /data/data/net.scintill.simfileseektest/app_rilextender-cache");
     }
 
+    public long getServiceBirthDate() throws RemoteException {
+        return getIRilExtender().getBirthDate();
+    }
+
+    public int getServiceVersion() throws RemoteException {
+        return getIRilExtender().getVersion();
+    }
+
     @Override
     public void registerForIccRefresh(IccRecords iccRecords, int eventRefresh, Object o) {
     }
