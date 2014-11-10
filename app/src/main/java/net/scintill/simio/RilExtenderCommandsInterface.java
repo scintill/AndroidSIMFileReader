@@ -33,7 +33,6 @@ import com.SecUpwN.AIMSICD.utils.CMDProcessor;
 import com.SecUpwN.AIMSICD.utils.CommandResult;
 
 import net.scintill.simio.telephony.CommandsInterface;
-import net.scintill.simio.telephony.uicc.IccException;
 import net.scintill.simio.telephony.uicc.IccIoResult;
 import net.scintill.simio.telephony.uicc.IccRecords;
 import net.scintill.simio.telephony.uicc.IccUtils;
@@ -62,10 +61,10 @@ public class RilExtenderCommandsInterface implements CommandsInterface {
 
     private IRilExtender mIRilExtender;
     private Context mContext;
-    private boolean mInjectedLibrary;
+    private int mInjectedPid;
 
     public RilExtenderCommandsInterface(Context context) {
-        mInjectedLibrary = false;
+        mInjectedPid = 0;
         mContext = context;
         mIRilExtender = getIRilExtender();
 
@@ -151,19 +150,19 @@ public class RilExtenderCommandsInterface implements CommandsInterface {
 
         // We'll remember if we've recently injected it, but maybe the app has restarted since
         // then, so check the actual running process.
-        if (!mInjectedLibrary) {
-            ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
-            for (ActivityManager.RunningAppProcessInfo info : am.getRunningAppProcesses()) {
-                if (info.processName.equalsIgnoreCase("com.android.phone")) {
-                    phonePid = info.pid;
-                    phoneUid = info.uid;
-                    break;
-                }
+        ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningAppProcessInfo info : am.getRunningAppProcesses()) {
+            if (info.processName.equalsIgnoreCase("com.android.phone")) {
+                phonePid = info.pid;
+                phoneUid = info.uid;
+                break;
             }
-            if (phonePid == 0) {
-                throw new RuntimeException("unable to locate phone process");
-            }
+        }
+        if (phonePid == 0) {
+            throw new RuntimeException("unable to locate phone process");
+        }
 
+        if (mInjectedPid == 0 || phonePid != mInjectedPid) {
             try {
                 shouldInject = !checkIfLibraryAlreadyLoaded(phonePid, libraryPath);
             } catch (IOException e) {
@@ -183,7 +182,7 @@ public class RilExtenderCommandsInterface implements CommandsInterface {
                 throw new RuntimeException("unable to inject phone process: " + result);
             }
 
-            mInjectedLibrary = true;
+            mInjectedPid = phonePid;
         } else {
             Log.e(TAG, "Library was already injected. Waiting to see if it activates.");
         }
