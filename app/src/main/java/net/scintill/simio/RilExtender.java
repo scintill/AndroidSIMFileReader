@@ -31,7 +31,9 @@ import android.os.Parcel;
 import android.os.RemoteException;
 import android.util.Log;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.util.NoSuchElementException;
 
 /**
  * This class is injected into the com.android.phone process.
@@ -42,7 +44,7 @@ import java.lang.reflect.InvocationTargetException;
 public class RilExtender extends IRilExtender.Stub {
     private static final String TAG = "RilExtender";
     private static final String DESCRIPTOR = IRilExtender.class.getName();
-    private static final int VERSION = 2;
+    public static final int VERSION = 2;
 
     public static boolean onPhoneServiceTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
         //Log.d(TAG, "onTransact " + code + " " + android.os.Process.myPid());
@@ -70,7 +72,17 @@ public class RilExtender extends IRilExtender.Stub {
         }
     }
 
-    public byte[] iccIOForApp(final int command, final int fileId, final String path, final int p1, final int p2, final int p3, final String data, final String pin2, final String aid) {
+    public byte[] iccIOForApp(int command, int fileId, String path, int p1, int p2, int p3, String data, String pin2, String aid) {
+        try {
+            return iccIOForAppImpl(command, fileId, path, p1, p2, p3, data, pin2, aid);
+        } catch (Exception e) {
+            // Binder doesn't propagate exceptions
+            Log.e(TAG, "iccIOForApp exception", e);
+            return null;
+        }
+    }
+
+    private byte[] iccIOForAppImpl(final int command, final int fileId, final String path, final int p1, final int p2, final int p3, final String data, final String pin2, final String aid) {
         Log.d(TAG, "simIo "+fileId+" "+command+" "+p1+" "+p2+" "+p3+" "+path);
 
         final Message receivedMessage = Message.obtain();
@@ -97,7 +109,17 @@ public class RilExtender extends IRilExtender.Stub {
                     try {
                         // Get the RIL object.
                         Object gsmPhone = getGsmPhone();
-                        Object RIL = gsmPhone.getClass().getField("mCi").get(gsmPhone);
+                        Field f = null;
+                        try {
+                            f = gsmPhone.getClass().getField("mCi");
+                        } catch (NoSuchFieldException e) {
+                            try {
+                                f = gsmPhone.getClass().getField("mCM");
+                            } catch (NoSuchFieldException e2) { /* fall through */ }
+                        }
+                        if (f == null) throw new RuntimeException("can't find CommandsInterface");
+
+                        Object RIL = f.get(gsmPhone);
 
                         RIL.getClass().getMethod("iccIOForApp",
                                 int.class, int.class, String.class, int.class, int.class,
@@ -105,7 +127,7 @@ public class RilExtender extends IRilExtender.Stub {
                                 Message.class)
 
                                 .invoke(RIL, command, fileId, path, p1, p2, p3, data, pin2, aid, syncHandler.obtainMessage());
-                    } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException | NoSuchFieldException e) {
+                    } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
                         throw new RuntimeException(e);
                     }
                 }
@@ -126,8 +148,16 @@ public class RilExtender extends IRilExtender.Stub {
                 }
             } while (!done);
 
-            Object iccIoResult = receivedMessage.obj.getClass().getField("result").get(receivedMessage.obj);
+            // exception handling based on IccFileHandler#processException()
+            Object asyncResult = receivedMessage.obj;
+            Throwable asyncResultException = (Throwable) asyncResult.getClass().getField("exception").get(asyncResult);
+            if (asyncResultException != null) throw new RuntimeException("asyncResult.exception", asyncResultException);
+
+            Object iccIoResult = asyncResult.getClass().getField("result").get(asyncResult);
             Class iccIoResultClass = iccIoResult.getClass();
+            Throwable iccIoException = (Throwable) iccIoResultClass.getMethod("getException").invoke(iccIoResult);
+            if (iccIoException != null) throw new RuntimeException("iccIoResult.getException()", iccIoException);
+
             int sw1 = iccIoResultClass.getField("sw1").getInt(iccIoResult);
             int sw2 = iccIoResultClass.getField("sw2").getInt(iccIoResult);
             byte[] payload = (byte[]) iccIoResultClass.getField("payload").get(iccIoResult);
@@ -138,7 +168,7 @@ public class RilExtender extends IRilExtender.Stub {
             System.arraycopy(payload, 0, fullResponse, 2, payload.length);
 
             return fullResponse;
-        } catch (IllegalAccessException | NoSuchFieldException e) {
+        } catch (IllegalAccessException | NoSuchFieldException | NoSuchMethodException | InvocationTargetException e) {
             throw new RuntimeException(e);
         } finally {
             receivedMessage.recycle();

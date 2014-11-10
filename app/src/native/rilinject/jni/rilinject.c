@@ -125,7 +125,7 @@ jclass clRilExtender = 0;
 jmethodID mOnTransact = 0;
 
 static jboolean onTransact_hook(JNIEnv *env, jobject obj, jint jiCode, jobject joData, jobject joReply, jint jiFlags) {
-	jboolean returnValue = 0;
+	jboolean returnValue = JNI_FALSE;
 
 	if (!clRilExtender) {
 		clRilExtender = loadClassFromDex(env, "net/scintill/simio/RilExtender", "net.scintill.simio.RilExtender",
@@ -138,32 +138,18 @@ static jboolean onTransact_hook(JNIEnv *env, jobject obj, jint jiCode, jobject j
 	}
 
 	if (clRilExtender && mOnTransact) {
-		// XXX propagate exception?
 		(*env)->ExceptionClear(env);
 		returnValue = (*env)->CallStaticBooleanMethod(env, clRilExtender, mOnTransact, jiCode, joData, joReply, jiFlags);
 
-		if (!obj) {
-			ALOGD("failed to call rilinject class!");
-		}
-
-		if ((*env)->ExceptionOccurred(env)) {
-			ALOGD("exception thrown");
-			(*env)->ExceptionDescribe(env);
-			returnValue = 0;
+		if (!(*env)->ExceptionOccurred(env) && returnValue != JNI_TRUE) {
+			// call original method
+			dalvik_prepare(&d, &dalvikhook, env);
+			returnValue = (*env)->CallBooleanMethod(env, obj, dalvikhook.mid, jiCode, joData, joReply, jiFlags);
+			/*ALOGD("success calling : %s", dalvikhook.method_name);*/
+			dalvik_postcall(&d, &dalvikhook);
 		}
 	} else {
 		ALOGD("class/method not found!");
-	}
-
-	// call original method
-	if (!returnValue) {
-		dalvik_prepare(&d, &dalvikhook, env);
-		(*env)->ExceptionClear(env);
-		returnValue = (*env)->CallBooleanMethod(env, obj, dalvikhook.mid, jiCode, joData, joReply, jiFlags);
-		/*ALOGD("success calling : %s", dalvikhook.method_name);*/
-		dalvik_postcall(&d, &dalvikhook);
-	} else {
-		/*ALOGD("suppressing call to the real method");*/
 	}
 
 	return returnValue;

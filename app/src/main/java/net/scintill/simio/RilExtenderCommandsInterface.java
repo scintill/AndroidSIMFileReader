@@ -33,6 +33,7 @@ import com.SecUpwN.AIMSICD.utils.CMDProcessor;
 import com.SecUpwN.AIMSICD.utils.CommandResult;
 
 import net.scintill.simio.telephony.CommandsInterface;
+import net.scintill.simio.telephony.uicc.IccException;
 import net.scintill.simio.telephony.uicc.IccIoResult;
 import net.scintill.simio.telephony.uicc.IccRecords;
 import net.scintill.simio.telephony.uicc.IccUtils;
@@ -93,13 +94,15 @@ public class RilExtenderCommandsInterface implements CommandsInterface {
         IccIoResult iccIoResult = null;
         try {
             payloadBytes = mIRilExtender.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid);
-            int sw1 = payloadBytes[0] & 0xff;
-            int sw2 = payloadBytes[1] & 0xff;
-            payloadBytes = Arrays.copyOfRange(payloadBytes, 2, payloadBytes.length);
+            if (payloadBytes != null) {
+                int sw1 = payloadBytes[0] & 0xff;
+                int sw2 = payloadBytes[1] & 0xff;
+                payloadBytes = Arrays.copyOfRange(payloadBytes, 2, payloadBytes.length);
 
-            Log.d(TAG, "iccIO result=" + sw1 + " " + sw2 + " " + IccUtils.bytesToHexString(payloadBytes));
+                Log.d(TAG, "iccIO result=" + sw1 + " " + sw2 + " " + IccUtils.bytesToHexString(payloadBytes));
 
-            iccIoResult = new IccIoResult(sw1, sw2, payloadBytes);
+                iccIoResult = new IccIoResult(sw1, sw2, payloadBytes);
+            } // else, fall through to return null
         } catch (RemoteException e) {
             Log.e(TAG, "RemoteException", e);
             // fall through to return null

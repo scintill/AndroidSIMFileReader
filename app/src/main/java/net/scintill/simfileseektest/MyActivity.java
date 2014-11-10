@@ -36,6 +36,7 @@ import android.widget.TextView;
 import com.SecUpwN.AIMSICD.utils.Helpers;
 
 import net.scintill.simio.CardApplication;
+import net.scintill.simio.RilExtender;
 import net.scintill.simio.RilExtenderCommandsInterface;
 import net.scintill.simio.telephony.uicc.IccUtils;
 import net.scintill.simio.telephony.uicc.SIMRecords;
@@ -116,12 +117,13 @@ public class MyActivity extends Activity {
                                 } catch (RemoteException e) {
                                     results += "(unknown)\n";
                                 }
-                                results += "Service version=";
+                                results += "Loaded service version=";
                                 try {
                                     results += commandsInterface.getServiceVersion()+"\n";
                                 } catch (RemoteException e) {
                                     results += "(unknown)\n";
                                 }
+                                results += "Bundled service version=" + RilExtender.VERSION;
 
                                 TextView textViewResults = (TextView)MyActivity.this.findViewById(R.id.results);
                                 textViewResults.setText(results);
@@ -130,8 +132,16 @@ public class MyActivity extends Activity {
                         return true;
                     }
                 }), 0, null);
+            } else {
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        // technically we can work without su, if the phone process has already been injected
+                        TextView textViewResults = (TextView) MyActivity.this.findViewById(R.id.results);
+                        textViewResults.setText("Superuser/su not available!");
+                    }
+                });
             }
-            // checkSu() logs if su wasn't available
         } catch (Throwable t) {
             Log.e(TAG, "Error loading SIM files", t);
         }
