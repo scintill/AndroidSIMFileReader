@@ -35,7 +35,7 @@ properties.load(project.rootProject.file('local.properties').newDataInputStream(
 def ndkDir = properties.getProperty('ndk.dir')
 def sdkDir = properties.getProperty('sdk.dir')
 
-task rilExtenderBuild << {
+task rilExtenderNdkBuild << {
     // https://stackoverflow.com/questions/16667903/android-studio-gradle-and-ndk
 
     task("nativeHijackBuild", type: Exec) {
@@ -43,6 +43,7 @@ task rilExtenderBuild << {
                 "APP_PLATFORM=android-14",
                 "NDK_OUT=$buildDir/native/obj",
                 "NDK_APP_DST_DIR=$buildDir/native/bin/\$(TARGET_ARCH_ABI)"
+        standardOutput = new OutputStream() { public void write(int b) throws IOException {} }
     }.execute()
 
     task("nativeInstrumentsBaseBuild", type: Exec) {
@@ -50,6 +51,7 @@ task rilExtenderBuild << {
                 "APP_PLATFORM=android-14",
                 "NDK_OUT=$buildDir/native/obj",
                 "NDK_APP_DST_DIR=$buildDir/native/bin/\$(TARGET_ARCH_ABI)"
+        standardOutput = new OutputStream() { public void write(int b) throws IOException {} }
     }.execute()
 
     task("nativeDalvikHookBuild", type: Exec) {
@@ -57,6 +59,7 @@ task rilExtenderBuild << {
                 "APP_PLATFORM=android-14",
                 "NDK_OUT=$buildDir/native/obj",
                 "NDK_APP_DST_DIR=$buildDir/native/bin/\$(TARGET_ARCH_ABI)"
+        standardOutput = new OutputStream() { public void write(int b) throws IOException {} }
     }.execute()
 
     task("nativeRilInjectBuild", type: Exec) {
@@ -64,6 +67,7 @@ task rilExtenderBuild << {
                 "APP_PLATFORM=android-14",
                 "NDK_OUT=$buildDir/native/obj",
                 "NDK_APP_DST_DIR=$buildDir/native/bin/\$(TARGET_ARCH_ABI)"
+        standardOutput = new OutputStream() { public void write(int b) throws IOException {} }
     }.execute()
 
     // name the hijack binary as a .so -- the packaging stuff will automatically take care of it.
@@ -75,7 +79,7 @@ task rilExtenderBuild << {
 }
 
 tasks.withType(JavaCompile) {
-    compileTask -> compileTask.dependsOn rilExtenderBuild
+    compileTask -> compileTask.dependsOn rilExtenderNdkBuild
 }
 
 // https://github.com/creativepsyco/secondary-dex-gradle/
