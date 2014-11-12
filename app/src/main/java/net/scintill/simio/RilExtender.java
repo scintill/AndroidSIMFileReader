@@ -33,7 +33,6 @@ import android.util.Log;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.util.NoSuchElementException;
 
 /**
  * This class is injected into the com.android.phone process.
@@ -44,7 +43,7 @@ import java.util.NoSuchElementException;
 public class RilExtender extends IRilExtender.Stub {
     private static final String TAG = "RilExtender";
     private static final String DESCRIPTOR = IRilExtender.class.getName();
-    public static final int VERSION = 2;
+    public static final int VERSION = 6;
 
     public static boolean onPhoneServiceTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
         //Log.d(TAG, "onTransact " + code + " " + android.os.Process.myPid());
@@ -217,6 +216,11 @@ public class RilExtender extends IRilExtender.Stub {
         // Adapted from frameworks/opt/telephony/src/java/com/android/internal/telephony/DebugService.java
         try {
             Object phoneProxy = Class.forName("com.android.internal.telephony.PhoneFactory").getMethod("getDefaultPhone").invoke(null);
+            // Mediatek is special
+            if (phoneProxy.getClass().getName().equals("com.android.internal.telephony.gemini.GeminiPhone")) {
+                phoneProxy = phoneProxy.getClass().getMethod("getDefaultPhone").invoke(phoneProxy);
+            }
+
             Object gsmPhone = phoneProxy.getClass().getMethod("getActivePhone").invoke(phoneProxy);
             return gsmPhone;
         } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException | ClassNotFoundException e) {
