@@ -43,7 +43,7 @@ import java.lang.reflect.InvocationTargetException;
 public class RilExtender extends IRilExtender.Stub {
     private static final String TAG = "RilExtender";
     private static final String DESCRIPTOR = IRilExtender.class.getName();
-    public static final int VERSION = 6;
+    public static final int VERSION = 7;
 
     public static boolean onPhoneServiceTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
         //Log.d(TAG, "onTransact " + code + " " + android.os.Process.myPid());
@@ -125,7 +125,7 @@ public class RilExtender extends IRilExtender.Stub {
                                 int.class, String.class, String.class, String.class,
                                 Message.class)
 
-                                .invoke(RIL, command, fileId, path, p1, p2, p3, data, pin2, aid, syncHandler.obtainMessage());
+                                .invoke(RIL, command, fileId, !mIsMTK ? path : null, p1, p2, p3, data, pin2, aid, syncHandler.obtainMessage());
                     } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
                         throw new RuntimeException(e);
                     }
@@ -219,6 +219,7 @@ public class RilExtender extends IRilExtender.Stub {
             // Mediatek is special
             if (phoneProxy.getClass().getName().equals("com.android.internal.telephony.gemini.GeminiPhone")) {
                 phoneProxy = phoneProxy.getClass().getMethod("getDefaultPhone").invoke(phoneProxy);
+                mIsMTK = true;
             }
 
             Object gsmPhone = phoneProxy.getClass().getMethod("getActivePhone").invoke(phoneProxy);
@@ -230,6 +231,7 @@ public class RilExtender extends IRilExtender.Stub {
 
     private Context mContext;
     private long mBirthDate;
+    private static boolean mIsMTK = false;
 
     private RilExtender() {
         final Object oSignal = new Object();
