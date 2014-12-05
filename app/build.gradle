@@ -78,10 +78,6 @@ task rilExtenderNdkBuild << {
     }.execute()
 }
 
-tasks.withType(JavaCompile) {
-    compileTask -> compileTask.dependsOn rilExtenderNdkBuild
-}
-
 // https://github.com/creativepsyco/secondary-dex-gradle/
 /*
  * Copyright (c) 2014 Mohit Kanwal.
@@ -97,37 +93,34 @@ tasks.withType(JavaCompile) {
  * substantial portions of the Software.
  */
 import org.gradle.internal.os.OperatingSystem
-afterEvaluate { project ->
-    android.applicationVariants.each {
-        variant ->
-            String DEX = "$sdkDir/build-tools/${BUILD_TOOLS_VERSION}/dx"
-            String BUILD_TOOL_DX = OperatingSystem.current().windows ? "${DEX}.bat" : "${DEX}"
-            String ASSET_DIR = "${variant.mergeAssets.outputDir}"
-            String taskRilExtenderDex = "build${variant.name.capitalize()}RilExtenderDex"
-            String classDir = "$buildDir/intermediates/classes/${variant.name}"
+android.applicationVariants.all {
+    variant ->
+        String DEX = "$sdkDir/build-tools/${BUILD_TOOLS_VERSION}/dx"
+        String BUILD_TOOL_DX = OperatingSystem.current().windows ? "${DEX}.bat" : "${DEX}"
+        String ASSET_DIR = "${variant.mergeAssets.outputDir}"
+        String taskRilExtenderDex = "rilExtenderDex${variant.name.capitalize()}"
+        String classDir = "$buildDir/intermediates/classes/${variant.name}"
 
-            // NOTE: rilextender.dex lags behind the rest of the code, for "one build."
-            // First build, it will not be present at all, each subsequent build will have
-            // the compiled code from the last build.
-            //
-            // Probably I'm doing this at the wrong time, but I can't find the right
-            // dependency tree to make this happen -- I get circular dependency errors.
-            // Maybe they thought nobody could ever need compiled assets?
-            task(taskRilExtenderDex, type: Exec, dependsOn: variant.javaCompile) {
-                commandLine "${BUILD_TOOL_DX}", "--dex", "--no-strict",
-                "--output=${ASSET_DIR}/rilextender.dex",
-                "$classDir/net/scintill/simio/RilExtender.class",
-                "$classDir/net/scintill/simio/RilExtender\$1.class",
-                "$classDir/net/scintill/simio/RilExtender\$2.class",
-                "$classDir/net/scintill/simio/RilExtender\$3.class",
-                "$classDir/net/scintill/simio/IRilExtender.class",
-                "$classDir/net/scintill/simio/IRilExtender\$Stub\$Proxy.class",
-                "$classDir/net/scintill/simio/IRilExtender\$Stub.class"
-            }
+        // NOTE: rilextender.dex lags behind the rest of the code, for "one build."
+        // First build, it will not be present at all, each subsequent build will have
+        // the compiled code from the last build.
+        //
+        // Probably I'm doing this at the wrong time, but I can't find the right
+        // dependency tree to make this happen -- I get circular dependency errors.
+        // Maybe they thought nobody could ever need compiled assets?
+        task(taskRilExtenderDex, type: Exec, dependsOn: variant.dex) {
+            commandLine "${BUILD_TOOL_DX}", "--dex", "--no-strict",
+            "--output=${ASSET_DIR}/rilextender.dex",
+            "$classDir/net/scintill/simio/RilExtender.class",
+            "$classDir/net/scintill/simio/RilExtender\$1.class",
+            "$classDir/net/scintill/simio/RilExtender\$2.class",
+            "$classDir/net/scintill/simio/RilExtender\$3.class",
+            "$classDir/net/scintill/simio/IRilExtender.class",
+            "$classDir/net/scintill/simio/IRilExtender\$Stub\$Proxy.class",
+            "$classDir/net/scintill/simio/IRilExtender\$Stub.class"
+        }
 
-            // Make packaging depend on the above
-            String depTaskName = "dex${variant.variantData.name.capitalize()}"
-            Task depTask = tasks.findByName(depTaskName)
-            depTask.dependsOn tasks.findByName(taskRilExtenderDex);
-    }
+        // Make packaging depend on the above
+        variant.assemble.dependsOn tasks.findByName(taskRilExtenderDex);
+        variant.assemble.dependsOn tasks.findByName("rilExtenderNdkBuild"); // XXX variantize?
 }
