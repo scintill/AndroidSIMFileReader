@@ -21,6 +21,9 @@
  */
 package net.scintill.simio;
 
+// "com.android.internal.telephony.ITelephony" is the descriptor of the phone service --
+// hacking this interface's descriptor to that can come in handy for testing
+
 interface IRilExtender {
 
     byte[] iccIOForApp(int command, int fileId, String path, int p1, int p2, int p3, String data, String pin2, String aid);
@@ -30,5 +33,9 @@ interface IRilExtender {
     long getBirthDate();
 
     int getVersion();
+
+    String[] oemRilRequestStrings(in String[] requestArgs);
+
+    byte[] oemRilRequestRaw(String requestArgHex);
 
 }

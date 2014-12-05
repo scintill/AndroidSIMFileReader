@@ -33,6 +33,7 @@ import android.util.Log;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.math.BigInteger;
 
 /**
  * This class is injected into the com.android.phone process.
@@ -43,11 +44,15 @@ import java.lang.reflect.InvocationTargetException;
 public class RilExtender extends IRilExtender.Stub {
     private static final String TAG = "RilExtender";
     private static final String DESCRIPTOR = IRilExtender.class.getName();
-    public static final int VERSION = 7;
+    public static final int VERSION = 9;
 
     public static boolean onPhoneServiceTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
         //Log.d(TAG, "onTransact " + code + " " + android.os.Process.myPid());
         switch(code) {
+            case LAST_CALL_TRANSACTION:
+                return getInstance().onTransact(TRANSACTION_oemRilRequestStrings, data, reply, flags);
+            case LAST_CALL_TRANSACTION-1:
+                return getInstance().onTransact(TRANSACTION_oemRilRequestRaw, data, reply, flags);
             case TRANSACTION_iccIOForApp:
             case TRANSACTION_pingRilExtender:
             case TRANSACTION_getBirthDate:
@@ -82,71 +87,33 @@ public class RilExtender extends IRilExtender.Stub {
     }
 
     private byte[] iccIOForAppImpl(final int command, final int fileId, final String path, final int p1, final int p2, final int p3, final String data, final String pin2, final String aid) {
-        Log.d(TAG, "simIo "+fileId+" "+command+" "+p1+" "+p2+" "+p3+" "+path);
+        Log.d(TAG, "simIo " + fileId + " " + command + " " + p1 + " " + p2 + " " + p3 + " " + path);
 
-        final Message receivedMessage = Message.obtain();
+        final Message tmpMessage = Message.obtain();
+        Message receivedMessage;
         try {
-
-            final Handler syncHandler = new Handler(Looper.getMainLooper()) {
-                @Override
-                public void handleMessage(Message message) {
-                    try {
-                        synchronized (receivedMessage) {
-                            receivedMessage.copyFrom(message);
-                            receivedMessage.notify();
-                        }
-                    } catch (Throwable t) {
-                        Log.e(TAG, "handleMessage() threw an exception", t);
-                    }
-                }
-            };
-
-            // This has to be done on the main thread.
-            boolean postResult = new Handler(Looper.getMainLooper()).post(new Runnable() {
+            receivedMessage = postToMainAndWaitForResponse(new Runnable() {
                 @Override
                 public void run() {
                     try {
-                        // Get the RIL object.
-                        Object gsmPhone = getGsmPhone();
-                        Field f = null;
-                        try {
-                            f = gsmPhone.getClass().getField("mCi");
-                        } catch (NoSuchFieldException e) {
-                            try {
-                                f = gsmPhone.getClass().getField("mCM");
-                            } catch (NoSuchFieldException e2) { /* fall through */ }
-                        }
-                        if (f == null) throw new RuntimeException("can't find CommandsInterface");
-
-                        Object RIL = f.get(gsmPhone);
+                        Object RIL = getCommandsInterface(getGsmPhone());
 
                         RIL.getClass().getMethod("iccIOForApp",
                                 int.class, int.class, String.class, int.class, int.class,
                                 int.class, String.class, String.class, String.class,
                                 Message.class)
 
-                                .invoke(RIL, command, fileId, !mIsMTK ? path : null, p1, p2, p3, data, pin2, aid, syncHandler.obtainMessage());
+                                .invoke(RIL, command, fileId, !mIsMTK ? path : null, p1, p2, p3, data, pin2, aid, tmpMessage);
                     } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
                         throw new RuntimeException(e);
                     }
                 }
-            });
-            if (!postResult) {
-                throw new RuntimeException("failed to post to main thread");
-            }
+            }, tmpMessage);
+        } finally {
+            tmpMessage.recycle();
+        }
 
-            boolean done = false;
-            do {
-                try {
-                    synchronized (receivedMessage) {
-                        receivedMessage.wait(10000); // timeout, don't want to hang forever
-                    }
-                    done = true;
-                } catch (InterruptedException e) {
-                    // keep waiting
-                }
-            } while (!done);
-
+        try {
             // exception handling based on IccFileHandler#processException()
             Object asyncResult = receivedMessage.obj;
             Throwable asyncResultException = (Throwable) asyncResult.getClass().getField("exception").get(asyncResult);
@@ -167,11 +134,127 @@ public class RilExtender extends IRilExtender.Stub {
             System.arraycopy(payload, 0, fullResponse, 2, payload.length);
 
             return fullResponse;
-        } catch (IllegalAccessException | NoSuchFieldException | NoSuchMethodException | InvocationTargetException e) {
+        } catch (InvocationTargetException | NoSuchMethodException | NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         } finally {
             receivedMessage.recycle();
         }
+    }
+
+    @Override
+    public String[] oemRilRequestStrings(final String[] requestArgs) {
+        Log.d(TAG, "oemRilRequestStrings "+requestArgs);
+
+        final Message tmpMessage = Message.obtain();
+        final Message receivedMessage;
+        try {
+            receivedMessage = postToMainAndWaitForResponse(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Object RIL = getCommandsInterface(getGsmPhone());
+
+                        RIL.getClass().getMethod("invokeOemRilRequestStrings",
+                                String[].class, Message.class)
+                                .invoke(RIL, requestArgs, tmpMessage);
+                    } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }, tmpMessage);
+        } finally {
+            tmpMessage.recycle();
+        }
+
+        try {
+            Object asyncResult = receivedMessage.obj;
+            Throwable asyncResultException = null;
+            asyncResultException = (Throwable) asyncResult.getClass().getField("exception").get(asyncResult);
+            if (asyncResultException != null) throw new RuntimeException("asyncResult.exception", asyncResultException);
+
+            return (String[])asyncResult.getClass().getField("result").get(asyncResult);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        } finally {
+            receivedMessage.recycle();
+        }
+    }
+
+    @Override
+    public byte[] oemRilRequestRaw(final String requestArgHex) {
+        Log.d(TAG, "oemRilRequestRaw "+requestArgHex);
+
+        final Message tmpMessage = Message.obtain();
+        final Message receivedMessage;
+        try {
+            receivedMessage = postToMainAndWaitForResponse(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Object RIL = getCommandsInterface(getGsmPhone());
+
+                        RIL.getClass().getMethod("invokeOemRilRequestRaw",
+                                byte[].class, Message.class)
+                                .invoke(RIL, new BigInteger(requestArgHex, 16).toByteArray(), tmpMessage);
+                    } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }, tmpMessage);
+        } finally {
+            tmpMessage.recycle();
+        }
+
+        try {
+            Object asyncResult = receivedMessage.obj;
+            Throwable asyncResultException = null;
+            asyncResultException = (Throwable) asyncResult.getClass().getField("exception").get(asyncResult);
+            if (asyncResultException != null) throw new RuntimeException("asyncResult.exception", asyncResultException);
+
+            return (byte[])asyncResult.getClass().getField("result").get(asyncResult);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        } finally {
+            receivedMessage.recycle();
+        }
+    }
+
+    private Message postToMainAndWaitForResponse(Runnable runnable, Message tmpMessage) {
+        final Message receivedMessage = Message.obtain();
+        final Handler syncHandler = new Handler(Looper.getMainLooper()) {
+            @Override
+            public void handleMessage(Message message) {
+                try {
+                    synchronized (receivedMessage) {
+                        receivedMessage.copyFrom(message);
+                        receivedMessage.notify();
+                    }
+                } catch (Throwable t) {
+                    Log.e(TAG, "handleMessage() threw an exception", t);
+                }
+            }
+        };
+        tmpMessage.setTarget(syncHandler);
+
+        // This has to be done on the main thread.
+        boolean postResult = new Handler(Looper.getMainLooper()).post(runnable);
+        if (!postResult) {
+            throw new RuntimeException("failed to post to main thread");
+        }
+
+        boolean done = false;
+        do {
+            try {
+                synchronized (receivedMessage) {
+                    receivedMessage.wait(10000); // timeout, don't want to hang forever
+                }
+                done = true;
+            } catch (InterruptedException e) {
+                // keep waiting
+            }
+        } while (!done);
+
+        return receivedMessage;
     }
 
     private boolean accessCheck() {
@@ -225,6 +308,27 @@ public class RilExtender extends IRilExtender.Stub {
             Object gsmPhone = phoneProxy.getClass().getMethod("getActivePhone").invoke(phoneProxy);
             return gsmPhone;
         } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException | ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * @return The CommandsInterface instance (RIL object)
+     */
+    private static Object getCommandsInterface(Object gsmPhone) {
+        Field f = null;
+        try {
+            f = gsmPhone.getClass().getField("mCi");
+        } catch (NoSuchFieldException e) {
+            try {
+                f = gsmPhone.getClass().getField("mCM");
+            } catch (NoSuchFieldException e2) { /* fall through */ }
+        }
+        if (f == null) throw new RuntimeException("can't find CommandsInterface");
+
+        try {
+            return f.get(gsmPhone);
+        } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
