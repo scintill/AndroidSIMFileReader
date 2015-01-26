@@ -36,4 +36,7 @@ public interface CommandsInterface {
     void getIMSIForApp(String aid, Message message);
 
     void setRadioPower(boolean b, Object o);
+
+    void dispose();
+
 }

@@ -37,9 +37,6 @@ import java.util.concurrent.LinkedBlockingQueue;
  * This probably won't work well with two clients!  I don't know what happens
  * if your RIL currently uses the same AT interface.
  *
- * TODO combine threads?
- * They end up running serially anyway because the BP misses things if they're written while it's busy
- * (at least on Qcom)
  * TODO track down SIGPIPE (apparently in "cat /dev/smd7") on uncaught exception?
  * The stack barf in logcat is bugging me, but I spent some time trying to figure it out and can't.
  */
@@ -50,118 +47,80 @@ public abstract class AtCommandTerminal {
     protected Handler mHandler;
     protected int mHandlerWhat;
 
-    protected BlockingQueue<byte[]> mWriterQ;
-    protected Object mWriterFlag = new Object();
+    protected BlockingQueue<byte[]> mWriteQ;
 
     private static class Tty extends AtCommandTerminal {
-        protected boolean mThreadsRun = true;
-        protected Thread mReadThread, mWriteThread;
+        protected boolean mThreadRun = true;
+        protected Thread mIoThread;
         protected Process mReadProc, mWriteProc;
 
         protected Tty(String ttyPath) throws IOException {
             // TODO robustify su detection?
-            mReadProc = new ProcessBuilder("su", "-c", "exec \\cat "+ ttyPath).redirectErrorStream(true).start();
-            mWriteProc = new ProcessBuilder("su", "-c", "exec \\cat >" + ttyPath).start();
+            mReadProc = new ProcessBuilder("su", "-c", "\\exec cat <"+ ttyPath).start();
+            mWriteProc = new ProcessBuilder("su", "-c", "\\exec cat >" + ttyPath).start();
 
             mReadProc.getOutputStream().close();
             mWriteProc.getInputStream().close();
 
             Log.d(TAG, "mReadProc="+ mReadProc +", mWriteProc="+ mWriteProc);
 
-            mWriterQ = new LinkedBlockingQueue<>();
+            mWriteQ = new LinkedBlockingQueue<>();
 
-            mReadThread = new Thread(new ReaderRunnable(), "AtCommandTerminalRead");
-            mReadThread.start();
-            mWriteThread = new Thread(new WriterRunnable(), "AtCommandTerminalWrite");
-            mWriteThread.start();
+            mIoThread = new Thread(new IoRunnable(), "AtCommandTerminalIO");
+            mIoThread.start();
         }
 
-        private class ReaderRunnable implements Runnable {
+        private class IoRunnable implements Runnable {
             @Override
             public void run() {
-                BufferedReader br = new BufferedReader(new InputStreamReader(mReadProc.getInputStream()));
+                BufferedReader in = new BufferedReader(new InputStreamReader(mReadProc.getInputStream()));
+                OutputStream out = mWriteProc.getOutputStream();
                 try {
-                    while (mThreadsRun) {
+                    while (mThreadRun) {
+                        // wait for something to write
+                        byte[] bytesOut;
                         try {
-                            int exitValue = mReadProc.exitValue();
-                            Log.e(TAG, "readProc exited: " + exitValue);
-                            mThreadsRun = false;
-                            break;
-                        } catch (IllegalThreadStateException e) {
-                            // means it's still running, ignore
-                        }
-
-                        String line = br.readLine();
-                        if (line == null) {
-                            throw new RuntimeException("reader closed");
-                        }
-
-                        if (line.equals("OK") || line.equals("ERROR") || line.startsWith("+CME ERROR")) {
-                            synchronized (mWriterFlag) {
-                                mWriterFlag.notify();
-                            }
-                        }
-
-                        if (line.length() != 0) {
-                            // XXX remove this logging, could have sensitive info
-                            Log.d(TAG, "IO< " + line);
-                            if (mHandler != null) {
-                                mHandler.obtainMessage(mHandlerWhat, line).sendToTarget();
-                            } else {
-                                Log.d(TAG, "No handler for incoming data");
-                            }
-                        }
-                        // ignore empty lines
-                    }
-                } catch (IOException e) {
-                    // XXX better way?
-                    throw new RuntimeException(e);
-                } finally {
-                    mReadProc.destroy();
-                }
-            }
-        }
-
-        private class WriterRunnable implements Runnable {
-            @Override
-            public void run() {
-                OutputStream os = mWriteProc.getOutputStream();
-                try {
-                    while (mThreadsRun) {
-                        try {
-                            int exitValue = mWriteProc.exitValue();
-                            Log.e(TAG, "writeProc exited: " + exitValue);
-                            mThreadsRun = false;
-                            break;
-                        } catch (IllegalThreadStateException e) {
-                            // means it's still running, ignore
-                        }
-
-                        try {
-                            byte[] item = mWriterQ.take();
-                            os.write(item);
-                            os.write('\r');
-                            os.flush();
+                            bytesOut = mWriteQ.take();
                         } catch (InterruptedException e) {
-                            continue;
-                        } catch (IOException e) {
-                            Log.e(TAG, "IOException", e);
-                            mHandler.obtainMessage(mHandlerWhat, e).sendToTarget();
+                            continue; // restart loop
                         }
 
-                        // wait until we can write again
-                        synchronized (mWriterFlag) {
-                            for (; ; ) {
-                                try {
-                                    mWriterFlag.wait();
-                                    break;
-                                } catch (InterruptedException e) {
-                                    // fall through, keep waiting
+                        try {
+                            out.write(bytesOut);
+                            out.write('\r');
+                            out.flush();
+                        } catch (IOException e) {
+                            Log.e(TAG, "Output IOException", e);
+                            mHandler.obtainMessage(mHandlerWhat, e).sendToTarget();
+                            return; // kill thread
+                        }
+
+                        // dispatch response lines until done
+                        String lineIn;
+                        do {
+                            try {
+                                lineIn = in.readLine();
+                                if (lineIn == null) throw new IOException("reader closed");
+                            } catch (IOException e) {
+                                Log.e(TAG, "Input IOException", e);
+                                mHandler.obtainMessage(mHandlerWhat, e).sendToTarget();
+                                return; // kill thread
+                            }
+
+                            if (lineIn.length() != 0) {
+                                // XXX remove this logging, could have sensitive info
+                                Log.d(TAG, "IO< " + lineIn);
+                                if (mHandler != null) {
+                                    mHandler.obtainMessage(mHandlerWhat, lineIn).sendToTarget();
+                                } else {
+                                    Log.d(TAG, "Data came in with no handler");
                                 }
                             }
-                        }
+                            // ignore empty lines
+                        } while (!(lineIn.equals("OK") || lineIn.equals("ERROR") || lineIn.startsWith("+CME ERROR")));
                     }
                 } finally {
+                    mReadProc.destroy();
                     mWriteProc.destroy();
                 }
             }
@@ -171,14 +130,29 @@ public abstract class AtCommandTerminal {
         protected void sendImpl(String s, Handler handler, int what) {
             try {
                 // XXX remove this logging, could have sensitive info
-                Log.d(TAG, "IO> " + s+" "+Thread.currentThread()
-                );
-                mWriterQ.add(s.getBytes("ASCII"));
+                Log.d(TAG, "IO> " + s);
+                mWriteQ.add(s.getBytes("ASCII"));
             } catch (UnsupportedEncodingException e) {
                 // we assume that if a String is being used for convenience, it must be ASCII
                 throw new RuntimeException(e);
             }
         }
+
+        @Override
+        public void dispose() {
+            mThreadRun = false;
+            try {
+                // Have to do this to get readproc to exit.
+                // I guess it gets blocked waiting for input, so let's give it some.
+                mWriteProc.getOutputStream().write("ATE0\r".getBytes("ASCII"));
+                mWriteProc.getOutputStream().flush();
+            } catch (IOException e) {
+                // ignore and hope it exits
+            }
+            mReadProc.destroy();
+            mWriteProc.destroy();
+        }
+
     }
 
     public void send(String s, Handler handler, int what) {
@@ -188,6 +162,8 @@ public abstract class AtCommandTerminal {
     }
 
     protected abstract void sendImpl(String s, Handler handler, int what);
+
+    public abstract void dispose();
 
     public void forgetHandler() {
         mHandler = null;
@@ -206,8 +182,8 @@ public abstract class AtCommandTerminal {
             }
         }
 
-        // turn off local echo
-        //if (term != null) term.send("ATE0", null, 0);
+        // return result codes, return verbose codes, no local echo
+        if (term != null) term.send("ATQ0V1E0", null, 0);
 
         return term;
     }

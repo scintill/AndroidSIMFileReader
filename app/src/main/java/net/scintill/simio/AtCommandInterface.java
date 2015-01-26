@@ -49,7 +49,7 @@ public class AtCommandInterface implements CommandsInterface {
     public AtCommandInterface(AtCommandTerminal terminal) {
         mTerminal = terminal;
         mResponseQ = new ConcurrentLinkedQueue<>();
-        mHandler = new Handler(new HandlerCallback());
+        mHandler = new ResponseHandler();
     }
 
     @Override
@@ -63,49 +63,60 @@ public class AtCommandInterface implements CommandsInterface {
         }
     }
 
-    private class HandlerCallback implements Handler.Callback {
+    private class ResponseHandler extends Handler {
         @Override
-        public boolean handleMessage(Message message) {
-            String line = (String) message.obj;
-            line = line.toUpperCase();
-            if (line.equals("OK")) {
-                // ignore
-            } else if (line.startsWith("+CRSM:")) {
-                String[] pieces = line.substring(6).split(",");
-                int sw1 = Integer.valueOf(pieces[0].trim(), 10) & 0xff;
-                int sw2 = Integer.valueOf(pieces[1].trim(), 10) & 0xff;
-                pieces[2] = pieces[2].trim();
+        public void handleMessage(Message message) {
+            Message result = null;
+            try {
+                String line = null;
+                if (message.obj instanceof String) {
+                    line = ((String)message.obj).toUpperCase();
 
-                String hexBody;
-                if (pieces[2].charAt(0) == '"') {
-                    hexBody = pieces[2].substring(1, pieces[2].length() - 1);
+                    // ignore these and leave response queue alone
+                    if (line.equals("OK")) {
+                        return;
+                    }
+                } else if (message.obj instanceof IOException) {
+                    throw (IOException)message.obj;
+                }
+
+                result = mResponseQ.remove();
+                if (line.startsWith("+CRSM:")) {
+                    String[] pieces = line.substring(6).split(",");
+                    int sw1 = Integer.valueOf(pieces[0].trim(), 10) & 0xff;
+                    int sw2 = Integer.valueOf(pieces[1].trim(), 10) & 0xff;
+                    pieces[2] = pieces[2].trim();
+
+                    String hexBody;
+                    if (pieces[2].charAt(0) == '"') {
+                        hexBody = pieces[2].substring(1, pieces[2].length() - 1);
+                    } else {
+                        hexBody = pieces[2];
+                    }
+
+                    if ((hexBody.length() % 2) != 0) {
+                        throw new IOException("malformed body: " + pieces[2]);
+                    }
+
+                    // XXX remove, sensitive info
+                    Log.d(TAG, "iccIO result=" + sw1 + " " + sw2 + " " + hexBody);
+
+                    IccIoResult iccIoResult = new IccIoResult(sw1, sw2, IccUtils.hexStringToBytes(hexBody));
+                    AsyncResult.forMessage(result, iccIoResult, null);
+                    result.sendToTarget();
+                } else if (line.equals("ERROR")) {
+                    throw new IOException("AT error response");
                 } else {
-                    hexBody = pieces[2];
+                    throw new IOException("unexpected response "+line);
                 }
-
-                if ((hexBody.length() % 2) != 0) {
-                    throw new RuntimeException("malformed body: " + pieces[2]);
+            } catch (Throwable e) {
+                if (result != null) {
+                    AsyncResult.forMessage(result, null, e);
+                    result.sendToTarget();
+                } else {
+                    throw new RuntimeException(e);
                 }
-
-                // XXX remove, sensitive info
-                Log.d(TAG, "iccIO result=" + sw1 + " " + sw2 + " " + hexBody);
-
-                IccIoResult iccIoResult = new IccIoResult(sw1, sw2, IccUtils.hexStringToBytes(hexBody));
-                Message m = AtCommandInterface.this.mResponseQ.remove();
-                AsyncResult.forMessage(m, iccIoResult, null);
-                m.sendToTarget();
-            } else if (line.startsWith("AT+CRSM=")) {
-                // local echo, ignore
-                // TODO turn off echo?
-            } else if (line.equals("ERROR")) {
-                Message m = AtCommandInterface.this.mResponseQ.remove();
-                AsyncResult.forMessage(m, null, new IOException("AT error response "+Thread.currentThread()));
-                m.sendToTarget();
-            } else {
-                throw new RuntimeException("unexpected response");
             }
-
-            return true;
         }
     }
 
@@ -130,6 +141,12 @@ public class AtCommandInterface implements CommandsInterface {
     @Override
     public void setRadioPower(boolean b, Object o) {
         throw new RuntimeException("unimplemented");
+    }
+
+    @Override
+    public void dispose() {
+        mTerminal.dispose();
+        mTerminal = null;
     }
 
 }

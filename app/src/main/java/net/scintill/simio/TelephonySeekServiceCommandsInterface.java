@@ -140,4 +140,9 @@ public class TelephonySeekServiceCommandsInterface implements CommandsInterface 
     public void setRadioPower(boolean b, Object o) {
         throw new RuntimeException("unimplemented");
     }
+
+    @Override
+    public void dispose() {
+        // empty
+    }
 }

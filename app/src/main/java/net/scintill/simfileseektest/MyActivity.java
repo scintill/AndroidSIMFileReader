@@ -92,6 +92,8 @@ public class MyActivity extends Activity {
         return super.onOptionsItemSelected(item);
     }
 
+    private CommandsInterface mCommandsInterface;
+
     private void filesTests() {
         try {
             if (Helpers.checkSu()) {
@@ -101,9 +103,9 @@ public class MyActivity extends Activity {
                 // and a factory-type class that determines the best one and creates that instance
                 //final CommandsInterface commandsInterface = new TelephonySeekServiceCommandsInterface(this.getApplicationContext());
                 //final RilExtenderCommandsInterface commandsInterface = new RilExtenderCommandsInterface(this.getApplicationContext());
-                final CommandsInterface commandsInterface = new AtCommandInterface(AtCommandTerminal.factory());
-                UiccCardApplication cardApplication = new CardApplication(commandsInterface);
-                final SIMRecords records = new SIMRecords(cardApplication, this.getApplicationContext(), commandsInterface);
+                mCommandsInterface = new AtCommandInterface(AtCommandTerminal.factory());
+                UiccCardApplication cardApplication = new CardApplication(mCommandsInterface);
+                final SIMRecords records = new SIMRecords(cardApplication, this.getApplicationContext(), mCommandsInterface);
 
                 records.registerForRecordsLoaded(new Handler() {
                     @Override
@@ -149,5 +151,11 @@ public class MyActivity extends Activity {
         } catch (Throwable t) {
             Log.e(TAG, "Error loading SIM files", t);
         }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        mCommandsInterface.dispose();
     }
 }
