@@ -26,7 +26,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
-import com.SecUpwN.AIMSICD.utils.AtCommandTerminal;
+import com.SecUpwN.AIMSICD.utils.atcmd.AtCommandTerminal;
 
 import net.scintill.simio.telephony.CommandsInterface;
 import net.scintill.simio.telephony.uicc.IccIoResult;

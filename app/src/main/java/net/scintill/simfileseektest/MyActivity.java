@@ -27,27 +27,20 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
-import android.os.RemoteException;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
 
-import com.SecUpwN.AIMSICD.utils.AtCommandTerminal;
+import com.SecUpwN.AIMSICD.utils.atcmd.AtCommandTerminal;
 import com.SecUpwN.AIMSICD.utils.Helpers;
 
 import net.scintill.simio.AtCommandInterface;
 import net.scintill.simio.CardApplication;
-import net.scintill.simio.RilExtender;
-import net.scintill.simio.RilExtenderCommandsInterface;
-import net.scintill.simio.TelephonySeekServiceCommandsInterface;
 import net.scintill.simio.telephony.CommandsInterface;
 import net.scintill.simio.telephony.uicc.IccUtils;
 import net.scintill.simio.telephony.uicc.SIMRecords;
 import net.scintill.simio.telephony.uicc.UiccCardApplication;
-
-import java.text.DateFormat;
-import java.util.Date;
 
 
 public class MyActivity extends Activity {
