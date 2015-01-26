@@ -33,11 +33,15 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
 
+import com.SecUpwN.AIMSICD.utils.AtCommandTerminal;
 import com.SecUpwN.AIMSICD.utils.Helpers;
 
+import net.scintill.simio.AtCommandInterface;
 import net.scintill.simio.CardApplication;
 import net.scintill.simio.RilExtender;
 import net.scintill.simio.RilExtenderCommandsInterface;
+import net.scintill.simio.TelephonySeekServiceCommandsInterface;
+import net.scintill.simio.telephony.CommandsInterface;
 import net.scintill.simio.telephony.uicc.IccUtils;
 import net.scintill.simio.telephony.uicc.SIMRecords;
 import net.scintill.simio.telephony.uicc.UiccCardApplication;
@@ -95,21 +99,22 @@ public class MyActivity extends Activity {
                 // XXX get app ID?
                 // TODO add other implementations of CommandsInterface that use different SIM I/O methods,
                 // and a factory-type class that determines the best one and creates that instance
-                //mCommandsInterface = new TelephonySeekServiceCommandsInterface(this.getApplicationContext());
-                final RilExtenderCommandsInterface commandsInterface = new RilExtenderCommandsInterface(this.getApplicationContext());
+                //final CommandsInterface commandsInterface = new TelephonySeekServiceCommandsInterface(this.getApplicationContext());
+                //final RilExtenderCommandsInterface commandsInterface = new RilExtenderCommandsInterface(this.getApplicationContext());
+                final CommandsInterface commandsInterface = new AtCommandInterface(AtCommandTerminal.factory());
                 UiccCardApplication cardApplication = new CardApplication(commandsInterface);
                 final SIMRecords records = new SIMRecords(cardApplication, this.getApplicationContext(), commandsInterface);
 
-                records.registerForRecordsLoaded(new Handler(new Handler.Callback() {
+                records.registerForRecordsLoaded(new Handler() {
                     @Override
-                    public boolean handleMessage(Message message) {
+                    public void handleMessage(Message message) {
                         new Handler(Looper.getMainLooper()).post(new Runnable() {
                             @Override
                             public void run() {
                                 String results =
                                     "MSISDN=" + records.getMsisdnNumber()+"\n"+
                                     "TMSI=" + IccUtils.bytesToHexString(records.getTemporaryMobileSubscriberIdentity())+"\n"+
-                                    "LAI=" + IccUtils.bytesToHexString(records.getLocationAreaInformation())+"\n"+
+                                    "LAI=" + IccUtils.bytesToHexString(records.getLocationAreaInformation())+"\n";/*+
                                     "\n"+
                                     "Service injection date=";
                                 try {
@@ -123,15 +128,14 @@ public class MyActivity extends Activity {
                                 } catch (RemoteException e) {
                                     results += "(unknown)\n";
                                 }
-                                results += "Bundled service version=" + RilExtender.VERSION;
+                                results += "Bundled service version=" + RilExtender.VERSION;*/
 
                                 TextView textViewResults = (TextView)MyActivity.this.findViewById(R.id.results);
                                 textViewResults.setText(results);
                             }
                         });
-                        return true;
                     }
-                }), 0, null);
+                }, 0, null);
             } else {
                 new Handler(Looper.getMainLooper()).post(new Runnable() {
                     @Override
