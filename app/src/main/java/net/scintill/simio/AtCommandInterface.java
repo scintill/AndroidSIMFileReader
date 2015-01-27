@@ -47,10 +47,17 @@ public class AtCommandInterface implements CommandsInterface {
     private final Object mTerminalMutex = new Object();
     private ConcurrentLinkedQueue<Message> mResponseQ;
 
+    private String mAtiResponse;
+
+    private static final int EVENT_CRSM = 1;
+    private static final int EVENT_ATI = 2;
+
     public AtCommandInterface(AtCommandTerminal terminal) {
         mTerminal = terminal;
         mResponseQ = new ConcurrentLinkedQueue<>();
         mHandler = new ResponseHandler();
+
+        mTerminal.send("ATI", mHandler.obtainMessage(EVENT_ATI));
     }
 
     @Override
@@ -59,7 +66,7 @@ public class AtCommandInterface implements CommandsInterface {
         //if (data == null) data = "";
 
         synchronized (mTerminalMutex) {
-            mTerminal.send("AT+CRSM="+command+","+fileid+","+p1+","+p2+","+p3/*+","+data+","+path*/, mHandler, 0);
+            mTerminal.send("AT+CRSM="+command+","+fileid+","+p1+","+p2+","+p3/*+","+data+","+path*/, mHandler.obtainMessage(EVENT_CRSM));
             mResponseQ.add(result);
         }
     }
@@ -67,50 +74,61 @@ public class AtCommandInterface implements CommandsInterface {
     private class ResponseHandler extends Handler {
         @Override
         public void handleMessage(Message message) {
-            Message result = null;
-            try {
-                String line = null;
-                if (message.obj instanceof List) {
-                    line = ((List<String>)message.obj).get(0).toUpperCase();
-                } else if (message.obj instanceof IOException) {
-                    throw (IOException)message.obj;
-                }
+            if (message.what == EVENT_CRSM) {
+                Message result = null;
+                try {
+                    String line = null;
+                    if (message.obj instanceof List) {
+                        line = ((List<String>) message.obj).get(0).toUpperCase();
+                    } else if (message.obj instanceof IOException) {
+                        throw (IOException) message.obj;
+                    }
 
-                result = mResponseQ.remove();
-                if (line.startsWith("+CRSM:")) {
-                    String[] pieces = line.substring(6).split(",");
-                    int sw1 = Integer.valueOf(pieces[0].trim(), 10) & 0xff;
-                    int sw2 = Integer.valueOf(pieces[1].trim(), 10) & 0xff;
-                    pieces[2] = pieces[2].trim();
+                    result = mResponseQ.remove();
+                    if (line.startsWith("+CRSM:")) {
+                        String[] pieces = line.substring(6).split(",");
+                        int sw1 = Integer.valueOf(pieces[0].trim(), 10) & 0xff;
+                        int sw2 = Integer.valueOf(pieces[1].trim(), 10) & 0xff;
+                        pieces[2] = pieces[2].trim();
 
-                    String hexBody;
-                    if (pieces[2].charAt(0) == '"') {
-                        hexBody = pieces[2].substring(1, pieces[2].length() - 1);
+                        String hexBody;
+                        if (pieces[2].charAt(0) == '"') {
+                            hexBody = pieces[2].substring(1, pieces[2].length() - 1);
+                        } else {
+                            hexBody = pieces[2];
+                        }
+
+                        if ((hexBody.length() % 2) != 0) {
+                            throw new IOException("malformed body: " + pieces[2]);
+                        }
+
+                        // XXX remove, sensitive info
+                        Log.d(TAG, "iccIO result=" + sw1 + " " + sw2 + " " + hexBody);
+
+                        IccIoResult iccIoResult = new IccIoResult(sw1, sw2, IccUtils.hexStringToBytes(hexBody));
+                        AsyncResult.forMessage(result, iccIoResult, null);
+                        result.sendToTarget();
+                    } else if (line.equals("ERROR")) {
+                        throw new IOException("AT error response");
                     } else {
-                        hexBody = pieces[2];
+                        throw new IOException("unexpected response " + line);
                     }
-
-                    if ((hexBody.length() % 2) != 0) {
-                        throw new IOException("malformed body: " + pieces[2]);
+                } catch (Throwable e) {
+                    if (result != null) {
+                        AsyncResult.forMessage(result, null, e);
+                        result.sendToTarget();
+                    } else {
+                        throw new RuntimeException(e);
                     }
-
-                    // XXX remove, sensitive info
-                    Log.d(TAG, "iccIO result=" + sw1 + " " + sw2 + " " + hexBody);
-
-                    IccIoResult iccIoResult = new IccIoResult(sw1, sw2, IccUtils.hexStringToBytes(hexBody));
-                    AsyncResult.forMessage(result, iccIoResult, null);
-                    result.sendToTarget();
-                } else if (line.equals("ERROR")) {
-                    throw new IOException("AT error response");
-                } else {
-                    throw new IOException("unexpected response "+line);
                 }
-            } catch (Throwable e) {
-                if (result != null) {
-                    AsyncResult.forMessage(result, null, e);
-                    result.sendToTarget();
+            } else if (message.what == EVENT_ATI) {
+                if (message.obj instanceof IOException) {
+                    mAtiResponse = "IOException: "+((IOException)message.obj).getMessage();
                 } else {
-                    throw new RuntimeException(e);
+                    mAtiResponse = "";
+                    for (String line : (List<String>)message.obj) {
+                        mAtiResponse += line+"\n";
+                    }
                 }
             }
         }
@@ -141,8 +159,15 @@ public class AtCommandInterface implements CommandsInterface {
 
     @Override
     public void dispose() {
-        mTerminal.dispose();
-        mTerminal = null;
+        if (mTerminal != null) {
+            mTerminal.dispose();
+            mTerminal = null;
+        }
+    }
+
+    @Override
+    public String getInterfaceDebugInfo() {
+        return "ATI: "+mAtiResponse;
     }
 
 }

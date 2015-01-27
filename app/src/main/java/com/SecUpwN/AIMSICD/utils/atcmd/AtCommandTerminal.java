@@ -21,13 +21,11 @@
  */
 package com.SecUpwN.AIMSICD.utils.atcmd;
 
-import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * This probably won't work well with two clients!  I don't know what happens
@@ -40,28 +38,10 @@ public abstract class AtCommandTerminal {
 
     protected static final String TAG = "AtCommandTerminal";
 
-    protected Handler mHandler;
-    protected int mHandlerWhat;
-
-    protected BlockingQueue<byte[]> mWriteQ;
-
-    /*package*/ AtCommandTerminal() {
-        mWriteQ = new LinkedBlockingQueue<>();
-    }
-
-    public void send(String s, Handler handler, int what) {
-        mHandler = handler;
-        mHandlerWhat = what;
-        sendImpl(s, handler, what);
-    }
-
-    protected abstract void sendImpl(String s, Handler handler, int what);
+    // message may be null if the response is not needed
+    public abstract void send(String s, Message message);
 
     public abstract void dispose();
-
-    public void forgetHandler() {
-        mHandler = null;
-    }
 
     public static AtCommandTerminal factory() {
         AtCommandTerminal term = null;

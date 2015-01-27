@@ -145,4 +145,9 @@ public class TelephonySeekServiceCommandsInterface implements CommandsInterface 
     public void dispose() {
         // empty
     }
+
+    @Override
+    public String getInterfaceDebugInfo() {
+        return "";
+    }
 }

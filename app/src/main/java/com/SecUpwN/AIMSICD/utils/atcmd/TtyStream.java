@@ -21,8 +21,9 @@
  */
 package com.SecUpwN.AIMSICD.utils.atcmd;
 
-import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
+import android.util.Pair;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -32,6 +33,8 @@ import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /*package*/ class TtyStream extends AtCommandTerminal {
 
@@ -41,6 +44,8 @@ import java.util.List;
     private boolean mThreadRun = true;
     private Thread mIoThread;
 
+    protected BlockingQueue<Pair<byte[], Message>> mWriteQ;
+
     /*package*/ TtyStream(InputStream in, OutputStream out) {
         mInputStream = in;
         mOutputStream = out;
@@ -48,8 +53,10 @@ import java.util.List;
         mIoThread = new Thread(new IoRunnable(), "AtCommandTerminalIO");
         mIoThread.start();
 
+        mWriteQ = new LinkedBlockingQueue<>();
+
         // return result codes, return verbose codes, no local echo
-        this.send("ATQ0V1E0", null, 0);
+        this.send("ATQ0V1E0", null);
     }
 
     private class IoRunnable implements Runnable {
@@ -60,8 +67,11 @@ import java.util.List;
                 while (mThreadRun) {
                     // wait for something to write
                     byte[] bytesOut;
+                    Message resultMessage;
                     try {
-                        bytesOut = mWriteQ.take();
+                        Pair<byte[], Message> p = mWriteQ.take();
+                        bytesOut = p.first;
+                        resultMessage = p.second;
                     } catch (InterruptedException e) {
                         continue; // restart loop
                     }
@@ -72,7 +82,10 @@ import java.util.List;
                         mOutputStream.flush();
                     } catch (IOException e) {
                         Log.e(TAG, "Output IOException", e);
-                        mHandler.obtainMessage(mHandlerWhat, e).sendToTarget();
+                        if (resultMessage != null) {
+                            resultMessage.obj = e;
+                            resultMessage.sendToTarget();
+                        }
                         return; // kill thread
                     }
 
@@ -95,7 +108,10 @@ import java.util.List;
                             if (line == null) throw new IOException("reader closed");
                         } catch (IOException e) {
                             Log.e(TAG, "Input IOException", e);
-                            mHandler.obtainMessage(mHandlerWhat, e).sendToTarget();
+                            if (resultMessage != null) {
+                                resultMessage.obj = e;
+                                resultMessage.sendToTarget();
+                            }
                             return; // kill thread
                         }
 
@@ -104,13 +120,11 @@ import java.util.List;
                     } while (!(line.equals("OK") || line.equals("ERROR") || line.startsWith("+CME ERROR")));
 
                     // XXX remove this logging, could have sensitive info
-                    int i = 0;
-                    for (String s : lines) {
-                        Log.d(TAG, "IO"+(i++)+"< " + s);
-                    }
+                    Log.d(TAG, "IO< " + lines);
 
-                    if (mHandler != null) {
-                        mHandler.obtainMessage(mHandlerWhat, lines).sendToTarget();
+                    if (resultMessage != null) {
+                        resultMessage.obj = lines;
+                        resultMessage.sendToTarget();
                     } else {
                         Log.d(TAG, "Data came in with no handler");
                     }
@@ -125,11 +139,11 @@ import java.util.List;
     }
 
     @Override
-    protected void sendImpl(String s, Handler handler, int what) {
+    public void send(String s, Message resultMessage) {
         try {
             // XXX remove this logging, could have sensitive info
             Log.d(TAG, "IO> " + s);
-            mWriteQ.add(s.getBytes("ASCII"));
+            mWriteQ.add(Pair.create(s.getBytes("ASCII"), resultMessage));
         } catch (UnsupportedEncodingException e) {
             // we assume that if a String is being used for convenience, it must be ASCII
             throw new RuntimeException(e);

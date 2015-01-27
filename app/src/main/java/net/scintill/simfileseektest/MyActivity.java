@@ -109,21 +109,9 @@ public class MyActivity extends Activity {
                                 String results =
                                     "MSISDN=" + records.getMsisdnNumber()+"\n"+
                                     "TMSI=" + IccUtils.bytesToHexString(records.getTemporaryMobileSubscriberIdentity())+"\n"+
-                                    "LAI=" + IccUtils.bytesToHexString(records.getLocationAreaInformation())+"\n";/*+
+                                    "LAI=" + IccUtils.bytesToHexString(records.getLocationAreaInformation())+"\n"+
                                     "\n"+
-                                    "Service injection date=";
-                                try {
-                                    results += DateFormat.getDateTimeInstance().format(new Date(commandsInterface.getServiceBirthDate()))+"\n";
-                                } catch (RemoteException e) {
-                                    results += "(unknown)\n";
-                                }
-                                results += "Loaded service version=";
-                                try {
-                                    results += commandsInterface.getServiceVersion()+"\n";
-                                } catch (RemoteException e) {
-                                    results += "(unknown)\n";
-                                }
-                                results += "Bundled service version=" + RilExtender.VERSION;*/
+                                    mCommandsInterface.getInterfaceDebugInfo();
 
                                 TextView textViewResults = (TextView)MyActivity.this.findViewById(R.id.results);
                                 textViewResults.setText(results);

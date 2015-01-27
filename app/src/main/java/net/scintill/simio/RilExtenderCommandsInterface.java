@@ -47,7 +47,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.StringReader;
 import java.lang.reflect.InvocationTargetException;
+import java.text.DateFormat;
 import java.util.Arrays;
+import java.util.Date;
 
 /**
  * A CommandsInterface that communicates with a new Binder service injected into
@@ -313,5 +315,23 @@ public class RilExtenderCommandsInterface implements CommandsInterface {
     @Override
     public void dispose() {
         // empty
+    }
+
+    @Override
+    public String getInterfaceDebugInfo() {
+        String s = "Service injection date=";
+        try {
+            s += DateFormat.getDateTimeInstance().format(new Date(getServiceBirthDate()))+"\n";
+        } catch (RemoteException e) {
+            s += "(unknown)\n";
+        }
+        s += "Loaded service version=";
+        try {
+            s += getServiceVersion()+"\n";
+        } catch (RemoteException e) {
+            s += "(unknown)\n";
+        }
+        s += "Bundled service version=" + RilExtender.VERSION;
+        return s;
     }
 }

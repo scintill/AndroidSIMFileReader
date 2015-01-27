@@ -39,4 +39,6 @@ public interface CommandsInterface {
 
     void dispose();
 
+    String getInterfaceDebugInfo();
+
 }
