@@ -76,9 +76,6 @@ public abstract class AtCommandTerminal {
             }
         }
 
-        // return result codes, return verbose codes, no local echo
-        if (term != null) term.send("ATQ0V1E0", null, 0);
-
         return term;
     }
 

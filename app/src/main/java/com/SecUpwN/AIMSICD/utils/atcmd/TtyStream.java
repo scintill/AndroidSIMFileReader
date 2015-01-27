@@ -30,6 +30,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.List;
 
 /*package*/ class TtyStream extends AtCommandTerminal {
 
@@ -45,13 +47,16 @@ import java.io.UnsupportedEncodingException;
 
         mIoThread = new Thread(new IoRunnable(), "AtCommandTerminalIO");
         mIoThread.start();
+
+        // return result codes, return verbose codes, no local echo
+        this.send("ATQ0V1E0", null, 0);
     }
 
     private class IoRunnable implements Runnable {
         @Override
         public void run() {
-            BufferedReader in = new BufferedReader(new InputStreamReader(mInputStream));
             try {
+                BufferedReader in = new BufferedReader(new InputStreamReader(mInputStream, "ASCII"));
                 while (mThreadRun) {
                     // wait for something to write
                     byte[] bytesOut;
@@ -71,30 +76,48 @@ import java.io.UnsupportedEncodingException;
                         return; // kill thread
                     }
 
+                    /**
+                     * ETSI TS 127 007 gives this example:
+                     * <CR><LF>+CMD2: 3,0,15,"GSM"<CR><LF>
+                     * <CR><LF>+CMD2: (0-3),(0,1),(0-12,15),("GSM","IRA")<CR><LF>
+                     * <CR><LF>OK<CR><LF>
+                     *
+                     * I see embedded <CR><LF> sequences to line-break within responses.
+                     * We can fake it using the BufferedReader, ignoring blank lines.
+                     */
+
                     // dispatch response lines until done
-                    String lineIn;
+                    String line;
+                    List<String> lines = new ArrayList<>();
                     do {
                         try {
-                            lineIn = in.readLine();
-                            if (lineIn == null) throw new IOException("reader closed");
+                            line = in.readLine();
+                            if (line == null) throw new IOException("reader closed");
                         } catch (IOException e) {
                             Log.e(TAG, "Input IOException", e);
                             mHandler.obtainMessage(mHandlerWhat, e).sendToTarget();
                             return; // kill thread
                         }
 
-                        if (lineIn.length() != 0) {
-                            // XXX remove this logging, could have sensitive info
-                            Log.d(TAG, "IO< " + lineIn);
-                            if (mHandler != null) {
-                                mHandler.obtainMessage(mHandlerWhat, lineIn).sendToTarget();
-                            } else {
-                                Log.d(TAG, "Data came in with no handler");
-                            }
-                        }
-                        // ignore empty lines
-                    } while (!(lineIn.equals("OK") || lineIn.equals("ERROR") || lineIn.startsWith("+CME ERROR")));
+                        if (line.length() != 0) lines.add(line);
+                    	// ignore empty lines
+                    } while (!(line.equals("OK") || line.equals("ERROR") || line.startsWith("+CME ERROR")));
+
+                    // XXX remove this logging, could have sensitive info
+                    int i = 0;
+                    for (String s : lines) {
+                        Log.d(TAG, "IO"+(i++)+"< " + s);
+                    }
+
+                    if (mHandler != null) {
+                        mHandler.obtainMessage(mHandlerWhat, lines).sendToTarget();
+                    } else {
+                        Log.d(TAG, "Data came in with no handler");
+                    }
                 }
+            } catch (UnsupportedEncodingException e) {
+                // ASCII should work
+                throw new RuntimeException(e);
             } finally {
                 dispose();
             }

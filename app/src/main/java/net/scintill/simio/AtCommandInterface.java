@@ -34,6 +34,7 @@ import net.scintill.simio.telephony.uicc.IccRecords;
 import net.scintill.simio.telephony.uicc.IccUtils;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class AtCommandInterface implements CommandsInterface {
@@ -69,13 +70,8 @@ public class AtCommandInterface implements CommandsInterface {
             Message result = null;
             try {
                 String line = null;
-                if (message.obj instanceof String) {
-                    line = ((String)message.obj).toUpperCase();
-
-                    // ignore these and leave response queue alone
-                    if (line.equals("OK")) {
-                        return;
-                    }
+                if (message.obj instanceof List) {
+                    line = ((List<String>)message.obj).get(0).toUpperCase();
                 } else if (message.obj instanceof IOException) {
                     throw (IOException)message.obj;
                 }

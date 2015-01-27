@@ -28,7 +28,7 @@ import java.io.IOException;
 /*package*/ class TtyPrivFile extends TtyStream {
     protected Process mReadProc, mWriteProc;
 
-    /*package*/ TtyPrivFile(String ttyPath) throws IOException {
+    public TtyPrivFile(String ttyPath) throws IOException {
         // TODO robustify su detection?
         this(
                 new ProcessBuilder("su", "-c", "\\exec cat <" + ttyPath).start(),
