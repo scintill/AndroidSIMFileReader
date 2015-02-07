@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<!-- Source: http://www.clker.com/clipart-sim-card-1.html -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="449.73999"
+   height="449.73999"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.48.4 r9939"
+   sodipodi:docname="sim-card.svg"
+   inkscape:export-filename="/home/scintill/Projects/android/apps/build/AndroidSIMFileReader/app/src/main/res/drawable-mdpi/ic_launcher.png"
+   inkscape:export-xdpi="9.6099997"
+   inkscape:export-ydpi="9.6099997">
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="1"
+     inkscape:cx="236.11361"
+     inkscape:cy="230.30036"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="1440"
+     inkscape:window-height="850"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     showguides="false" />
+  <defs
+     id="defs4">
+    <filter
+       inkscape:collect="always"
+       id="filter3891"
+       color-interpolation-filters="sRGB">
+      <feGaussianBlur
+         inkscape:collect="always"
+         stdDeviation="7.2374999"
+         id="feGaussianBlur3893" />
+    </filter>
+  </defs>
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-152.73152,-297.35335)">
+    <path
+       id="path3098"
+       d="m 200.10152,179.72336 c -16.62,0 -30,13.38 -30,30 l 0,490 c 0,16.62 13.38,30 30,30 l 354.99999,0 c 16.62,0 30,-13.38 30,-30 l 0,-444.1875 -75.7812,-75.8125 -309.21878,0 z"
+       style="fill:#333333;fill-opacity:1;stroke:none;filter:url(#filter3891)"
+       inkscape:connector-curvature="0"
+       transform="matrix(1,0,0,0.76851175,0,174.94334)" />
+    <path
+       style="fill:#cccccc;fill-opacity:1;stroke:none"
+       d="m 200.10152,315.0838 c -16.62,0 -30,10.08705 -30,22.6167 l 0,369.40616 c 0,12.52965 13.38,22.6167 30,22.6167 l 354.99999,0 c 16.62,0 30,-10.08705 30,-22.6167 l 0,-334.86857 -75.7812,-57.15429 -309.21879,0 z"
+       id="rect2816"
+       inkscape:connector-curvature="0" />
+    <g
+       id="g3053"
+       transform="translate(-1.9593898,44.04061)">
+      <rect
+         ry="30"
+         rx="30"
+         y="417.44269"
+         x="252.24434"
+         height="250"
+         width="250"
+         id="rect2818"
+         style="fill:#ffcc00;fill-opacity:1;stroke:#000000;stroke-width:6;stroke-miterlimit:4;stroke-dasharray:none" />
+      <path
+         inkscape:connector-curvature="0"
+         style="fill:#000000;fill-opacity:1;stroke:none"
+         d="m 504.24441,483.00461 0,2.875 -73.7188,0 -16.5,16.5 0,40.625 90.2188,0 0,2.875 -90.2188,0 0,40.625 16.5,16.5 73.7188,0 0,2.875 -74.9063,0 -18.1875,-18.1875 0.25,-0.25 -0.25,0 0,-85.71875 0.5313,0 -0.5313,-0.53125 18.1875,-18.1875 74.9063,0 z"
+         id="path3629" />
+      <path
+         inkscape:connector-curvature="0"
+         id="rect3596"
+         d="m 341.00781,585.00461 0,2.875 34.8125,0 0,81.5625 2.8437,0 0,-81.5625 34.8438,0 0,-2.875 -72.5,0 z"
+         style="fill:#000000;fill-opacity:1;stroke:none" />
+      <path
+         inkscape:connector-curvature="0"
+         id="rect3598"
+         d="m 375.82031,418.16086 0,82.84375 -34.8125,0 0,2.875 37.6562,0 0,-2.15625 0,-0.71875 0,-82.84375 -2.8437,0 z"
+         style="fill:#000000;fill-opacity:1;stroke:none" />
+      <path
+         inkscape:connector-curvature="0"
+         id="rect3602"
+         d="m 250.25781,483.00461 0,2.875 73.7187,0 16.5,16.5 0,40.625 -90.2187,0 0,2.875 90.2187,0 0,40.625 -16.5,16.5 -73.7187,0 0,2.875 74.9062,0 18.1875,-18.1875 -0.25,-0.25 0.25,0 0,-85.71875 -0.5312,0 0.5312,-0.53125 -18.1875,-18.1875 -74.9062,0 z"
+         style="fill:#000000;fill-opacity:1;stroke:none" />
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:40px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#008c00;fill-opacity:1;stroke:none;font-family:Ubuntu Mono;-inkscape-font-specification:Ubuntu Mono"
+       x="306.73151"
+       y="374.09335"
+       id="text3104"
+       sodipodi:linespacing="125%"><tspan
+         sodipodi:role="line"
+         id="tspan3106"
+         x="306.73151"
+         y="374.09335"
+         style="stroke:none">    1  1  1</tspan><tspan
+         sodipodi:role="line"
+         x="306.73151"
+         y="424.09335"
+         id="tspan3108"
+         style="stroke:none">   1  1  0</tspan><tspan
+         sodipodi:role="line"
+         x="306.73151"
+         y="474.09335"
+         id="tspan3110"
+         style="stroke:none">  0  1  1</tspan><tspan
+         sodipodi:role="line"
+         x="306.73151"
+         y="524.09338"
+         id="tspan3112"
+         style="stroke:none"> 1  0  0</tspan><tspan
+         sodipodi:role="line"
+         x="306.73151"
+         y="574.09338"
+         id="tspan3114"
+         style="stroke:none">0  1  0</tspan></text>
+  </g>
+</svg>
