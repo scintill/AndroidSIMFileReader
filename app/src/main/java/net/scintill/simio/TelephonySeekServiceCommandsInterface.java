@@ -8,33 +8,43 @@ import android.os.Parcel;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
+import com.SecUpwN.AIMSICD.utils.CMDProcessor;
+import com.SecUpwN.AIMSICD.utils.CommandResult;
+
 import net.scintill.simio.telephony.CommandsInterface;
 import net.scintill.simio.telephony.uicc.IccIoResult;
 import net.scintill.simio.telephony.uicc.IccRecords;
 import net.scintill.simio.telephony.uicc.IccUtils;
 
-import com.SecUpwN.AIMSICD.utils.CMDProcessor;
-import com.SecUpwN.AIMSICD.utils.CommandResult;
-
-import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 public class TelephonySeekServiceCommandsInterface implements CommandsInterface {
-    protected static final String TAG = "FakeRil";
+    protected static final String TAG = "TelephonySeekServiceCommandsInterface";
 
     private TelephonyManager mTelephonyManager;
     private int mTRANSACTION_transmitIccSimIO;
     private int mSeekUid;
 
-    public TelephonySeekServiceCommandsInterface(Context context) {
+    /**
+     * @param context
+     * @throws UnsupportedOperationException if SEEK could not be found
+     */
+    public TelephonySeekServiceCommandsInterface(Context context) throws UnsupportedOperationException {
+        if (ByteOrder.nativeOrder() != ByteOrder.LITTLE_ENDIAN) {
+            // The "service" cmd output is byte-order sensitive. We could probably deal with
+            // big-endian, but there's no need for now.
+            throw new UnsupportedOperationException("Only little-endian byte order is supported");
+        }
+
         // Get transmitIccSimIO service call ID
         try {
             Field f = Class.forName("com.android.internal.telephony.ITelephony$Stub").getDeclaredField("TRANSACTION_transmitIccSimIO");
             f.setAccessible(true);
             mTRANSACTION_transmitIccSimIO = f.getInt(null);
         } catch (NoSuchFieldException | ClassNotFoundException | IllegalAccessException e) {
-            throw new RuntimeException("could not get com.android.internal.telephony.ITelephony.Stub.TRANSACTION_transmitIccSimIO -- the telephony service probably doesn't support SEEK");
+            throw new UnsupportedOperationException("could not get com.android.internal.telephony.ITelephony.Stub.TRANSACTION_transmitIccSimIO -- the telephony service probably doesn't support SEEK");
         }
 
         // Get OpenMobile Service's user ID, or NFC id
@@ -47,7 +57,7 @@ public class TelephonySeekServiceCommandsInterface implements CommandsInterface 
                 Field f = Class.forName("android.os.Process").getField("NFC_UID");
                 mSeekUid = f.getInt(null);
             } catch (NoSuchFieldException | ClassNotFoundException | IllegalAccessException e2) {
-                throw new RuntimeException("could not get android.os.Process.NFC_UID", e2);
+                throw new UnsupportedOperationException("could not get android.os.Process.NFC_UID", e2);
             }
         }
 

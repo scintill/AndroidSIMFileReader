@@ -32,12 +32,11 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
 
-import com.SecUpwN.AIMSICD.utils.atcmd.AtCommandTerminal;
 import com.SecUpwN.AIMSICD.utils.Helpers;
 
-import net.scintill.simio.AtCommandInterface;
 import net.scintill.simio.CardApplication;
 import net.scintill.simio.telephony.CommandsInterface;
+import net.scintill.simio.CommandsInterfaceFactory;
 import net.scintill.simio.telephony.uicc.IccUtils;
 import net.scintill.simio.telephony.uicc.SIMRecords;
 import net.scintill.simio.telephony.uicc.UiccCardApplication;
@@ -90,13 +89,8 @@ public class MyActivity extends Activity {
     private void filesTests() {
         try {
             if (Helpers.checkSu()) {
-                // XXX use proper implementation depending on card type
-                // XXX get app ID?
-                // TODO add other implementations of CommandsInterface that use different SIM I/O methods,
-                // and a factory-type class that determines the best one and creates that instance
-                //final CommandsInterface commandsInterface = new TelephonySeekServiceCommandsInterface(this.getApplicationContext());
-                //final RilExtenderCommandsInterface commandsInterface = new RilExtenderCommandsInterface(this.getApplicationContext());
-                mCommandsInterface = new AtCommandInterface(AtCommandTerminal.factory());
+                // XXX get SIM application ID?
+                mCommandsInterface = CommandsInterfaceFactory.factory(getApplicationContext());
                 UiccCardApplication cardApplication = new CardApplication(mCommandsInterface);
                 final SIMRecords records = new SIMRecords(cardApplication, this.getApplicationContext(), mCommandsInterface);
 
@@ -111,6 +105,7 @@ public class MyActivity extends Activity {
                                     "TMSI=" + IccUtils.bytesToHexString(records.getTemporaryMobileSubscriberIdentity())+"\n"+
                                     "LAI=" + IccUtils.bytesToHexString(records.getLocationAreaInformation())+"\n"+
                                     "\n"+
+                                    "Commands interface: "+mCommandsInterface.getClass().getSimpleName()+"\n"+
                                     mCommandsInterface.getInterfaceDebugInfo();
 
                                 TextView textViewResults = (TextView)MyActivity.this.findViewById(R.id.results);

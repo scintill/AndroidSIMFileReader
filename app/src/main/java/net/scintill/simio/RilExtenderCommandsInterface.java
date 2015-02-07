@@ -24,6 +24,7 @@ package net.scintill.simio;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.os.AsyncResult;
+import android.os.Build;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.RemoteException;
@@ -66,6 +67,11 @@ public class RilExtenderCommandsInterface implements CommandsInterface {
     private int mInjectedPid;
 
     public RilExtenderCommandsInterface(Context context) {
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT) {
+            throw new UnsupportedOperationException("RilExtender probably won't work with Lollipop"+
+                " (more accurately, the ART runtime)");
+        }
+
         mInjectedPid = 0;
         mContext = context;
         mIRilExtender = getIRilExtender();

@@ -43,7 +43,11 @@ public abstract class AtCommandTerminal {
 
     public abstract void dispose();
 
-    public static AtCommandTerminal factory() {
+    /**
+     * @return
+     * @throws UnsupportedOperationException if no instance can be made
+     */
+    public static AtCommandTerminal factory() throws UnsupportedOperationException {
         AtCommandTerminal term = null;
 
         File smdFile = new File("/dev/smd7");
@@ -54,6 +58,10 @@ public abstract class AtCommandTerminal {
                 Log.e(TAG, "IOException in constructor", e);
                 // fall through
             }
+        }
+
+        if (term == null) {
+            throw new UnsupportedOperationException("unable to find AT command terminal");
         }
 
         return term;
