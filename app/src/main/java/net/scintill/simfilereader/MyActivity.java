@@ -19,7 +19,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package net.scintill.simfileseektest;
+package net.scintill.simfilereader;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -44,7 +44,7 @@ import net.scintill.simio.telephony.uicc.UiccCardApplication;
 
 public class MyActivity extends Activity {
 
-    private final static String TAG = "SIMFileSeekTest";
+    private final static String TAG = "SIMFileReader";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -132,6 +132,8 @@ public class MyActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        mCommandsInterface.dispose();
+        if (mCommandsInterface != null) {
+            mCommandsInterface.dispose();
+        }
     }
 }

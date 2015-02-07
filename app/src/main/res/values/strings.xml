@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">SIMFileSEEKTest</string>
-    <string name="hello_world">Check logcat for error messages. Sometimes it can take a long time for SuperSU to prompt, and the test doesn\'t start until permission is granted.\n\nExample logcat command:\nadb logcat -s SIMFileSeekTest,RilExtender,RilExtenderCommandsInterface,AtCommandInterface,CommandsInterfaceFactory,TelephonySeekServiceCommandsInterface,SIMRecords,Parcel,librilinject,CMDProcessor,lib__hijack.bin__.so,System.err,su\n\nIf the commands are being received by the RilExtender, you might also check the radio log to see what the RIL is doing with them.</string>
+    <string name="app_name">SIMFileReader</string>
+    <string name="hello_world">Check logcat for error messages. Sometimes it can take a long time for SuperSU to prompt, and the test doesn\'t start until permission is granted.\n\nExample logcat command:\nadb logcat -s SIMFileReader,RilExtender,RilExtenderCommandsInterface,AtCommandInterface,CommandsInterfaceFactory,TelephonySeekServiceCommandsInterface,SIMRecords,Parcel,librilinject,CMDProcessor,lib__hijack.bin__.so,System.err,su\n\nIf the commands are being received by the RilExtender, you might also check the radio log to see what the RIL is doing with them.</string>
     <string name="action_settings">Settings</string>
 
 </resources>

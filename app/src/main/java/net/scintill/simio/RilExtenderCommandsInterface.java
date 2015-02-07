@@ -242,11 +242,11 @@ public class RilExtenderCommandsInterface implements CommandsInterface {
         File rilExtenderDexCacheDir = mContext.getDir("rilextender-cache", Context.MODE_WORLD_READABLE);
         File rilExtenderDex = new File(mContext.getDir("rilextender", Context.MODE_WORLD_READABLE), "rilextender.dex");
 
-        if (rilExtenderDex.getAbsolutePath().equals("/data/data/net.scintill.simfileseektest/app_rilextender/rilextender.dex") == false) {
+        if (rilExtenderDex.getAbsolutePath().equals("/data/data/net.scintill.simfilereader/app_rilextender/rilextender.dex") == false) {
             throw new RuntimeException("The dex wasn't placed where the hardcoded NDK injector expects it! Path was "+rilExtenderDex.getAbsolutePath());
             // We could probably have the NDK injector check several paths if this is a problem.
         }
-        if (rilExtenderDexCacheDir.getAbsolutePath().equals("/data/data/net.scintill.simfileseektest/app_rilextender-cache") == false) {
+        if (rilExtenderDexCacheDir.getAbsolutePath().equals("/data/data/net.scintill.simfilereader/app_rilextender-cache") == false) {
             throw new RuntimeException("The dex cache wasn't placed where the hardcoded NDK injector expects it! Path was "+rilExtenderDexCacheDir.getAbsolutePath());
         }
 
@@ -284,7 +284,7 @@ public class RilExtenderCommandsInterface implements CommandsInterface {
         // I also don't really like doing this every time, but I think the permissions could
         // change (for example, backup/restore or something), and I can't see a convenient way
         // to check the owner, so it's easiest to just set it every time.
-        CMDProcessor.runSuCommand("chown "+phoneUid+":"+phoneUid+" /data/data/net.scintill.simfileseektest/app_rilextender-cache");
+        CMDProcessor.runSuCommand("chown "+phoneUid+":"+phoneUid+" /data/data/net.scintill.simfilereader/app_rilextender-cache");
     }
 
     public long getServiceBirthDate() throws RemoteException {

@@ -129,7 +129,7 @@ static jboolean onTransact_hook(JNIEnv *env, jobject obj, jint jiCode, jobject j
 
 	if (!clRilExtender) {
 		clRilExtender = loadClassFromDex(env, "net/scintill/simio/RilExtender", "net.scintill.simio.RilExtender",
-			"/data/data/net.scintill.simfileseektest/app_rilextender/rilextender.dex", "/data/data/net.scintill.simfileseektest/app_rilextender-cache");
+			"/data/data/net.scintill.simfilereader/app_rilextender/rilextender.dex", "/data/data/net.scintill.simfilereader/app_rilextender-cache");
 		if (clRilExtender) {
 			clRilExtender = (*env)->NewGlobalRef(env, clRilExtender);
 			// XXX delete ever? we're probably going to live forever, until the process dies

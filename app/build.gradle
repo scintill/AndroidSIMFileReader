@@ -6,7 +6,7 @@ android {
     buildToolsVersion BUILD_TOOLS_VERSION
 
     defaultConfig {
-        applicationId "net.scintill.simfileseektest"
+        applicationId "net.scintill.simfilereader"
         minSdkVersion 15
         targetSdkVersion 20
         versionCode 1

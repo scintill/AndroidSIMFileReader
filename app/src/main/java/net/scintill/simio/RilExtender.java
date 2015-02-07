@@ -264,7 +264,7 @@ public class RilExtender extends IRilExtender.Stub {
 
         PackageManager pm = mContext.getPackageManager();
         for (String pkg : pm.getPackagesForUid(Binder.getCallingUid())) {
-            if (pkg.equals("net.scintill.simfileseektest")) {
+            if (pkg.equals("net.scintill.simfilereader")) {
                 return true;
             }
         }
