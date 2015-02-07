@@ -50,6 +50,9 @@ public abstract class AtCommandTerminal {
     public static AtCommandTerminal factory() throws UnsupportedOperationException {
         AtCommandTerminal term = null;
 
+        // QCom: /dev/smd7, possibly other SMD devices. On 2 devices I've checked,
+        // smd7 is owned by bluetooth:bluetooth, so that could be something to sniff for if
+        // it's not always smd7.
         File smdFile = new File("/dev/smd7");
         if (smdFile.exists()) {
             try {

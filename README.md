@@ -25,3 +25,13 @@ Android 5.0 appears to have introduced a public [iccExchangeSimIO\(\)](https://d
 ## Privacy
 
 There are several places where potentially sensitive information (your phone number, your [TMSI](https://en.wikipedia.org/wiki/Mobility_management#TMSI), your [LAI](https://en.wikipedia.org/wiki/Location_area_identity)) is sent to `logcat`.  Beware, other apps or users could view this log and learn these data about your phone/SIM card.
+
+## Building
+
+Something is wrong with the build process.  To reliably build the RilExtender (injected service), you have to build twice.  The first build doesn't properly package the secondary dex file in to the app.
+
+## Logs
+
+Example logcat command to filter to output from this app (also shown on the app's screen):
+
+    adb logcat -s SIMFileReader,RilExtender,RilExtenderCommandsInterface,AtCommandInterface,CommandsInterfaceFactory,TelephonySeekServiceCommandsInterface,SIMRecords,Parcel,librilinject,CMDProcessor,lib__hijack.bin__.so,System.err,su
