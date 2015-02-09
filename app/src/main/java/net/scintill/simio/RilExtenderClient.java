@@ -106,6 +106,7 @@ public class RilExtenderClient {
     public Bundle pingSyncNotOnMainThread() {
         Intent intent = makeIntent("ping");
         final Message msg = Message.obtain();
+        msg.obj = null;
         Log.d(TAG, "pingSync "+Thread.currentThread().getName());
 
         sendIntent(intent, new BroadcastReceiver() {
@@ -113,8 +114,8 @@ public class RilExtenderClient {
             public void onReceive(Context context, Intent intent) {
                 Log.d(TAG, "pingSync onReceive");
                 // this should be on the main thread, the outer method is not
-                msg.obj = getResultExtras(false).clone();
                 synchronized (msg) {
+                    msg.obj = getResultExtras(false).clone();
                     msg.notifyAll();
                 }
             }
@@ -122,7 +123,9 @@ public class RilExtenderClient {
 
         synchronized (msg) {
             try {
-                msg.wait();
+                if (msg.obj == null) {
+                    msg.wait();
+                }
             } catch (InterruptedException e) {
                 return null;
             }
