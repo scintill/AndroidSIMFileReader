@@ -113,10 +113,6 @@ android.applicationVariants.all {
             "--output=${ASSET_DIR}/rilextender.dex",
             "$classDir/net/scintill/simio/RilExtender.class",
             "$classDir/net/scintill/simio/RilExtender\$1.class",
-            "$classDir/net/scintill/simio/RilExtender\$2.class",
-            "$classDir/net/scintill/simio/RilExtender\$3.class",
-            "$classDir/net/scintill/simio/RilExtender\$4.class",
-            "$classDir/net/scintill/simio/RilExtender\$5.class",
             "$classDir/net/scintill/simio/IRilExtender.class",
             "$classDir/net/scintill/simio/IRilExtender\$Stub\$Proxy.class",
             "$classDir/net/scintill/simio/IRilExtender\$Stub.class"

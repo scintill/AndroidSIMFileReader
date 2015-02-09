@@ -23,8 +23,8 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE    := librilinject
 LOCAL_SRC_FILES := rilinject.c.arm
-LOCAL_C_INCLUDES := ../../adbi/instruments/base/ ../../ddi/dalvikhook/jni/
-LOCAL_LDLIBS	:= -L ../../../../build/native/obj/local/armeabi -ldalvikhook -lbase -llog
+LOCAL_C_INCLUDES := ../../adbi/instruments/base/
+LOCAL_LDLIBS	:= -L ../../../../build/native/obj/local/armeabi -lbase -llog
 LOCAL_CFLAGS    := -g
 
 include $(BUILD_SHARED_LIBRARY)

@@ -37,40 +37,25 @@
 
 #define _GNU_SOURCE
 #include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <dlfcn.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <sys/select.h>
-#include <string.h>
-#include <termios.h>
-#include <pthread.h>
 #include <sys/epoll.h>
 
-#include <jni.h>
-#include <stdlib.h>
-#include <android/log.h>
-
 #include "hook.h"
-#include "dexstuff.h"
-#include "dalvik_hook.h"
 #include "base.h"
 
-static struct hook_t eph;
-static struct dexstuff_t d;
-static struct dalvik_hook_t dalvikhook;
+#include <jni.h>
 
-// switch for debug output of dalvikhook and dexstuff code
-static int debug = 1;
+#include <android/log.h>
+
+static struct hook_t eph;
 
 #define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "librilinject", __VA_ARGS__)
+#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, "librilinject", __VA_ARGS__)
 
 static jclass loadClassFromDex(JNIEnv *env, const char *classNameSlash, const char *classNameDot, const char *dexPath, const char *cachePath) {
-	jclass clLoadedClass = (*env)->FindClass(env, classNameSlash);
+	jclass clTargetClass = (*env)->FindClass(env, classNameSlash);
 
-	if (!clLoadedClass) {
+	if (!clTargetClass) {
 		(*env)->ExceptionClear(env); // FindClass() complains if there's an exception already
 
 		// Load my class with BaseDexClassLoader
@@ -83,11 +68,11 @@ static jclass loadClassFromDex(JNIEnv *env, const char *classNameSlash, const ch
 		if (clFile && mFileConstructor) {
 			obCacheDirFile = (*env)->NewObject(env, clFile, mFileConstructor, (*env)->NewStringUTF(env, cachePath));
 			if ((*env)->ExceptionOccurred(env)) {
-				ALOGD("new File() threw an exception");
+				ALOGE("new File() threw an exception");
 				(*env)->ExceptionDescribe(env);
 			}
 		} else {
-			ALOGD("Couldn't open cache File!");
+			ALOGE("Couldn't open cache File!");
 		}
 
 		jclass clDexClassLoader = (*env)->FindClass(env, "dalvik/system/BaseDexClassLoader");
@@ -103,56 +88,25 @@ static jclass loadClassFromDex(JNIEnv *env, const char *classNameSlash, const ch
 
 			// XXX stingutf necesary?
 			if (classloaderobj) {
-				clLoadedClass = (*env)->CallObjectMethod(env, classloaderobj, mLoadClass, (*env)->NewStringUTF(env, classNameDot));
+				clTargetClass = (*env)->CallObjectMethod(env, classloaderobj, mLoadClass, (*env)->NewStringUTF(env, classNameDot));
 				if ((*env)->ExceptionOccurred(env)) {
-					ALOGD("loadClass() threw an exception");
+					ALOGE("loadClass() threw an exception");
 					(*env)->ExceptionDescribe(env);
-				}
+				} else {
+					// this is enough to get Dalvik to execute <clinit> (class static initialization block) for us
+					(*env)->GetStaticMethodID(env, clTargetClass, "<clinit>", "()V");
+			    }
 			} else {
-				ALOGD("classloader object not found!");
+				ALOGE("classloader object not found!");
 			}
 		} else {
-			ALOGD("classloader/constructor not found!");
+			ALOGE("classloader/constructor not found!");
 		}
 
-		ALOGD("clLoadedClass = %x", clLoadedClass);
+		ALOGD("clTargetClass = %x", clTargetClass);
 	}
 
-	return clLoadedClass;
-}
-
-jclass clRilExtender = 0;
-jmethodID mOnTransact = 0;
-
-static jboolean onTransact_hook(JNIEnv *env, jobject obj, jint jiCode, jobject joData, jobject joReply, jint jiFlags) {
-	jboolean returnValue = JNI_FALSE;
-
-	if (!clRilExtender) {
-		clRilExtender = loadClassFromDex(env, "net/scintill/simio/RilExtender", "net.scintill.simio.RilExtender",
-			"/data/data/net.scintill.simfilereader/app_rilextender/rilextender.dex", "/data/data/net.scintill.simfilereader/app_rilextender-cache");
-		if (clRilExtender) {
-			clRilExtender = (*env)->NewGlobalRef(env, clRilExtender);
-			// XXX delete ever? we're probably going to live forever, until the process dies
-			mOnTransact = (*env)->GetStaticMethodID(env, clRilExtender, "onPhoneServiceTransact", "(ILandroid/os/Parcel;Landroid/os/Parcel;I)Z");
-		}
-	}
-
-	if (clRilExtender && mOnTransact) {
-		(*env)->ExceptionClear(env);
-		returnValue = (*env)->CallStaticBooleanMethod(env, clRilExtender, mOnTransact, jiCode, joData, joReply, jiFlags);
-
-		if (!(*env)->ExceptionOccurred(env) && returnValue != JNI_TRUE) {
-			// call original method
-			dalvik_prepare(&d, &dalvikhook, env);
-			returnValue = (*env)->CallBooleanMethod(env, obj, dalvikhook.mid, jiCode, joData, joReply, jiFlags);
-			/*ALOGD("success calling : %s", dalvikhook.method_name);*/
-			dalvik_postcall(&d, &dalvikhook);
-		}
-	} else {
-		ALOGD("class/method not found!");
-	}
-
-	return returnValue;
+	return clTargetClass;
 }
 
 static int my_epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout) {
@@ -161,15 +115,18 @@ static int my_epoll_wait(int epfd, struct epoll_event *events, int maxevents, in
 	// remove hook for epoll_wait
 	hook_precall(&eph);
 
-	// resolve symbols from DVM
-	debug = 0; // dlopen logging is noisy
-	dexstuff_resolv_dvm(&d);
-	debug = 1;
+	void *pLibdvm = dlopen("libdvm.so", RTLD_LAZY);
+	/*Thread*/void* (*dvmThreadSelf)() = dlsym(pLibdvm, "_Z13dvmThreadSelfv");
+	JNIEnv* (*dvmCreateJNIEnv)(/*Thread*/void*) = dlsym(pLibdvm, "_Z15dvmCreateJNIEnvP6Thread");
 
-	// hook
-	dalvik_hook_setup(&dalvikhook, "Lcom/android/phone/PhoneInterfaceManager;", "onTransact", "(ILandroid/os/Parcel;Landroid/os/Parcel;I)Z", 5, onTransact_hook);
-	//dalvikhook.debug_me = debug;
-	dalvik_hook(&d, &dalvikhook);
+	ALOGD("dvmThreadSelf = %p", dvmThreadSelf);
+	ALOGD("dvmCreateJNIEnv = %p", dvmCreateJNIEnv);
+
+	JNIEnv* env = dvmCreateJNIEnv(dvmThreadSelf());
+	ALOGD("JNIEnv* = %p", env);
+
+	loadClassFromDex(env, "net/scintill/simio/RilExtender", "net.scintill.simio.RilExtender",
+        "/data/data/net.scintill.simfilereader/app_rilextender/rilextender.dex", "/data/data/net.scintill.simfilereader/app_rilextender-cache");
 
 	// call original function
 	int res = orig_epoll_wait(epfd, events, maxevents, timeout);
@@ -178,20 +135,21 @@ static int my_epoll_wait(int epfd, struct epoll_event *events, int maxevents, in
 
 
 static void my_log(char *msg) {
-	if (debug)
+	if (1)
 		ALOGD("%s", msg);
 }
 
-// set my_init as the entry point
-void __attribute__ ((constructor)) my_init(void);
-
-void my_init(void) {
+// entry point when this library is loaded
+void __attribute__ ((constructor)) my_init() {
 	ALOGD("initializing");
 
-	// set log function for  libbase (very important!)
+	// set log function for libbase
 	set_logfunction(my_log);
-	// set log function for libdalvikhook (very important!)
-	dalvikhook_set_logfunction(my_log);
 
+	// If I try to load the class directly here, I get
+	// "Optimized data directory /data/data/net.scintill.simfilereader/app_rilextender-cache is not owned by the current user.
+	// Shared storage cannot protect your application from code injection attacks.", despite having taken care to set that ownership
+	// correctly.  The backtrace starts at android.os.MessageQueue.nativePollOnce. I guess epoll_wait was chosen by
+	// Collin Mulliner as a sane-ish place in the call stack to do crazy stuff like this.
 	hook(&eph, getpid(), "libc.", "epoll_wait", my_epoll_wait, 0);
 }
