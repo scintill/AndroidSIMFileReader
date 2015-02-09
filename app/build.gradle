@@ -54,14 +54,6 @@ task rilExtenderNdkBuild << {
         standardOutput = new OutputStream() { public void write(int b) throws IOException {} }
     }.execute()
 
-    task("nativeDalvikHookBuild", type: Exec) {
-        commandLine "$ndkDir/ndk-build", '--directory', "$projectDir/src/native/ddi/dalvikhook/jni",
-                "APP_PLATFORM=android-14",
-                "NDK_OUT=$buildDir/native/obj",
-                "NDK_APP_DST_DIR=$buildDir/native/bin/\$(TARGET_ARCH_ABI)"
-        standardOutput = new OutputStream() { public void write(int b) throws IOException {} }
-    }.execute()
-
     task("nativeRilInjectBuild", type: Exec) {
         commandLine "$ndkDir/ndk-build", '--directory', "$projectDir/src/native/rilinject/jni",
                 "APP_PLATFORM=android-14",

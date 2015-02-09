@@ -39,6 +39,8 @@
 #include <stdio.h>
 #include <dlfcn.h>
 #include <sys/epoll.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "hook.h"
 #include "base.h"
@@ -79,7 +81,7 @@ static jclass loadClassFromDex(JNIEnv *env, const char *classNameSlash, const ch
 		jmethodID mClassLoaderConstructor = (*env)->GetMethodID(env, clDexClassLoader, "<init>", "(Ljava/lang/String;Ljava/io/File;Ljava/lang/String;Ljava/lang/ClassLoader;)V");
 		jmethodID mGetSystemClassLoader = (*env)->GetStaticMethodID(env, clDexClassLoader, "getSystemClassLoader", "()Ljava/lang/ClassLoader;");
 		jmethodID mLoadClass = (*env)->GetMethodID(env, clDexClassLoader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
-		ALOGD("clDexClassLoader = %x, obCacheDirFile = %x", clDexClassLoader, obCacheDirFile);
+		ALOGD("clDexClassLoader = %p, obCacheDirFile = %p", clDexClassLoader, obCacheDirFile);
 
 		if (clDexClassLoader && mClassLoaderConstructor && mLoadClass && obCacheDirFile) {
 			jobject classloaderobj = (*env)->NewObject(env, clDexClassLoader, mClassLoaderConstructor,
@@ -103,7 +105,7 @@ static jclass loadClassFromDex(JNIEnv *env, const char *classNameSlash, const ch
 			ALOGE("classloader/constructor not found!");
 		}
 
-		ALOGD("clTargetClass = %x", clTargetClass);
+		ALOGD("clTargetClass = %p", clTargetClass);
 	}
 
 	return clTargetClass;
