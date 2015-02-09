@@ -140,8 +140,9 @@ public class RilExtenderClient {
         boolean shouldInject = false;
         int phonePid = 0;
         int phoneUid = 0;
+        String libSuffix = "/librilinject.so";
         String libraryDir = mContext.getApplicationInfo().nativeLibraryDir;
-        String libraryPath = libraryDir + "/librilinject.so";
+        String libraryPath = libraryDir + libSuffix;
 
         // We'll remember if we've recently injected it, but maybe the app has restarted since
         // then, so check the actual running process.
@@ -159,7 +160,7 @@ public class RilExtenderClient {
 
         if (mInjectedPid == 0 || phonePid != mInjectedPid) {
             try {
-                shouldInject = !checkIfLibraryAlreadyLoaded(phonePid, libraryPath);
+                shouldInject = !checkIfLibraryAlreadyLoaded(phonePid, libSuffix);
             } catch (IOException e) {
                 Log.e(TAG, "Error trying to determine if library is loaded. Not injecting.", e);
             }
@@ -191,9 +192,7 @@ public class RilExtenderClient {
         }
     }
 
-    private boolean checkIfLibraryAlreadyLoaded(int phonePid, String libraryPath) throws IOException {
-        // XXX this breaks (false negative for the library's presence) if the package manager
-        // has moved our path since the lib was injected.
+    private boolean checkIfLibraryAlreadyLoaded(int phonePid, String libSuffix) throws IOException {
         BufferedReader in = null;
         boolean sawStack = false, sawLib = false;
         try {
@@ -211,7 +210,8 @@ public class RilExtenderClient {
                 if (line.endsWith("[stack]")) {
                     sawStack = true;
                     if (sawLib) break;
-                } else if (line.contains(libraryPath)) {
+                } else if (line.contains(libSuffix)) {
+                    // this match is looser than I'd like, but it's to handle "lib.so (deleted)"
                     sawLib = true;
                     if (sawStack) break;
                 }
@@ -228,8 +228,8 @@ public class RilExtenderClient {
     }
 
     private void prepareDexFile(int phoneUid) {
-        File rilExtenderDexCacheDir = mContext.getDir("rilextender-cache", Context.MODE_WORLD_READABLE);
-        File rilExtenderDex = new File(mContext.getDir("rilextender", Context.MODE_WORLD_READABLE), "rilextender.dex");
+        File rilExtenderDexCacheDir = mContext.getDir("rilextender-cache", Context.MODE_PRIVATE);
+        File rilExtenderDex = new File(mContext.getDir("rilextender", Context.MODE_PRIVATE), "rilextender.dex");
 
         if (rilExtenderDex.getAbsolutePath().equals("/data/data/net.scintill.simfilereader/app_rilextender/rilextender.dex") == false) {
             throw new RuntimeException("The dex wasn't placed where the hardcoded NDK injector expects it! Path was "+rilExtenderDex.getAbsolutePath());
@@ -255,8 +255,8 @@ public class RilExtenderClient {
             out.close(); // closes target too
             in.close(); // closes source too
         } catch (IOException e) {
-            // if the file is missing, try re-building the APK and run again
             throw new RuntimeException("I/O error while extracting dex", e);
+            // if the file is missing, the builder can try re-building the APK and run again
         }
 
         Log.d(TAG, rilExtenderDex.getName()+" extracted to "+rilExtenderDex.getAbsolutePath());
