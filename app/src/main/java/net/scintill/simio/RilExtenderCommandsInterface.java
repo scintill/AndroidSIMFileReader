@@ -26,7 +26,6 @@ import android.os.Bundle;
 import android.os.Message;
 import android.os.RemoteException;
 
-import net.scintill.rilextender.RilExtender;
 import net.scintill.rilextender.RilExtenderClient;
 import net.scintill.simio.telephony.CommandsInterface;
 import net.scintill.simio.telephony.uicc.IccRecords;
@@ -97,7 +96,6 @@ public class RilExtenderCommandsInterface implements CommandsInterface {
         s += DateFormat.getDateTimeInstance().format(new Date(mClientInfo.getLong("birthdate")))+"\n";
         s += "Loaded service version=";
         s += mClientInfo.getInt("version")+"\n";
-        s += "Bundled service version=" + RilExtender.VERSION;
         return s;
     }
 }

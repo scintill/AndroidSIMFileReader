@@ -17,12 +17,7 @@
             </intent-filter>
         </activity>
     </application>
-    
-    <permission android:name="net.scintill.simio.RILEXTENDER_CLIENT"
-        android:label="@string/perm_RILEXTENDER_CLIENT_label"
-        android:description="@string/perm_RILEXTENDER_CLIENT_desc"
-        android:permissionGroup="android.permission-group.DEVELOPMENT_TOOLS" />
 
-    <uses-permission android:name="net.scintill.simio.RILEXTENDER_CLIENT" />
+    <uses-permission android:name="net.scintill.rilextender.RILEXTENDER_CLIENT" />
 
 </manifest>

@@ -23,6 +23,7 @@ package net.scintill.rilextender;
 
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -59,7 +60,6 @@ public class RilExtenderClient {
     private static final String TAG = "RilExtenderClient";
 
     private Context mContext;
-    private int mInjectedPid;
 
     public RilExtenderClient(Context context) {
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT) {
@@ -67,7 +67,6 @@ public class RilExtenderClient {
                     " (more accurately, the ART runtime)");
         }
 
-        mInjectedPid = 0;
         mContext = context;
     }
 
@@ -179,181 +178,6 @@ public class RilExtenderClient {
         return bundle;
     }
 
-    private void installServiceAndWait() {
-        boolean shouldInject = false;
-        String libSuffix = "/librilinject.so";
-        final String libraryDir = mContext.getApplicationInfo().nativeLibraryDir;
-        final String libraryPath = libraryDir + libSuffix;
-
-        // We'll remember if we've recently injected it, but maybe the app has restarted since
-        // then, so check the actual running process.
-        Pair<Integer, Integer> phonePidUid = getPhonePidUid();
-        if (phonePidUid == null) {
-            throw new RuntimeException("unable to locate phone process");
-        }
-        final int phonePid = phonePidUid.first;
-        int phoneUid = phonePidUid.second;
-
-        if (mInjectedPid == 0 || phonePid != mInjectedPid) {
-            try {
-                shouldInject = !checkIfLibraryAlreadyLoaded(phonePid, libSuffix);
-            } catch (IOException e) {
-                Log.e(TAG, "Error trying to determine if library is loaded. Not injecting.", e);
-            }
-        }
-
-        if (shouldInject) {
-            prepareDexFile(phoneUid);
-
-            Log.d(TAG, "Installing RilExtender service");
-
-            // XXX race conditions on loading it.. I guess dlopen()'s idempotent behavior makes it not too bad
-            final Message signal = Message.obtain();
-            signal.obj = null;
-            HandlerThread handlerThread = new HandlerThread("installServiceAndWait.RilExtenderClient");
-            handlerThread.start();
-            final Handler handler = new Handler(handlerThread.getLooper());
-            handler.post(new Runnable() {
-                @Override
-                public void run() {
-                    CommandResult result = CMDProcessor.runSuCommand("logwrapper " + libraryDir + "/lib__hijack.bin__.so -d -p " + phonePid +
-                            " -l " + libraryPath);
-
-                    if (!result.success()) {
-                        throw new RuntimeException("unable to inject phone process: " + result);
-                    }
-
-                    mInjectedPid = phonePid;
-
-                    mContext.registerReceiver(new BroadcastReceiver() {
-                        @Override
-                        public void onReceive(Context context, Intent intent) {
-                            synchronized (signal) {
-                                signal.obj = new Boolean(true);
-                                signal.notifyAll();
-                            }
-                        }
-                    }, new IntentFilter("net.scintill.rilextender.I_AM_RILEXTENDER"), null, handler);
-                }
-            });
-
-            synchronized (signal) {
-                if (signal.obj == null) {
-                    try {
-                        signal.wait(5000);
-                    } catch (InterruptedException e) {
-                        // do nothing
-                    }
-                }
-            }
-
-            handlerThread.quit();
-
-            if (signal.obj == null) {
-                signal.recycle();
-                throw new RuntimeException("did not hear from new RilExtender service");
-            }
-            signal.recycle();
-        } else {
-            Log.e(TAG, "Library was already injected.");
-        }
-    }
-
-    private boolean checkIfLibraryAlreadyLoaded(int phonePid, String libSuffix) throws IOException {
-        BufferedReader in = null;
-        boolean sawStack = false, sawLib = false;
-        try {
-            String filePath = "/proc/"+phonePid+"/maps";
-            CommandResult result = CMDProcessor.runSuCommand("cat "+filePath);
-            if (!result.success()) {
-                throw new IOException("error reading "+filePath);
-            }
-
-            in = new BufferedReader(new StringReader(result.getStdout()));
-            String line;
-
-            while ((line = in.readLine()) != null) {
-                // sanity-check that we are reading correctly
-                if (line.endsWith("[stack]")) {
-                    sawStack = true;
-                    if (sawLib) break;
-                } else if (line.contains(libSuffix)) {
-                    // this match is looser than I'd like, but it's to handle "lib.so (deleted)"
-                    sawLib = true;
-                    if (sawStack) break;
-                }
-            }
-        } finally {
-            if (in != null) in.close();
-        }
-
-        if (!sawStack) {
-            throw new IOException("did not find stack; is the file being read wrong?");
-        }
-
-        return sawLib;
-    }
-
-    private void prepareDexFile(int phoneUid) {
-        File rilExtenderDexCacheDir = mContext.getDir("rilextender-cache", Context.MODE_PRIVATE);
-        File rilExtenderDex = new File(mContext.getDir("rilextender", Context.MODE_PRIVATE), "rilextender.dex");
-
-        if (rilExtenderDex.getAbsolutePath().equals("/data/data/net.scintill.simfilereader/app_rilextender/rilextender.dex") == false) {
-            throw new RuntimeException("The dex wasn't placed where the hardcoded NDK injector expects it! Path was "+rilExtenderDex.getAbsolutePath());
-            // We could probably have the NDK injector check several paths if this is a problem.
-        }
-        if (rilExtenderDexCacheDir.getAbsolutePath().equals("/data/data/net.scintill.simfilereader/app_rilextender-cache") == false) {
-            throw new RuntimeException("The dex cache wasn't placed where the hardcoded NDK injector expects it! Path was "+rilExtenderDexCacheDir.getAbsolutePath());
-        }
-
-        // TODO cache this?
-        try {
-            // Extract dex file from assets.
-            // Thanks to https://github.com/creativepsyco/secondary-dex-gradle/blob/method2/app/src/main/java/com/github/creativepsyco/secondarydex/plugin/SecondaryDex.java
-            // for the general idea.
-            InputStream in = new BufferedInputStream(mContext.getAssets().open("rilextender.dex"));
-            OutputStream out = new BufferedOutputStream(new FileOutputStream(rilExtenderDex));
-
-            byte[] buf = new byte[1024];
-            int len;
-            while ((len = in.read(buf)) > 0) {
-                out.write(buf, 0, len);
-            }
-            out.close(); // closes target too
-            in.close(); // closes source too
-        } catch (IOException e) {
-            throw new RuntimeException("I/O error while extracting dex", e);
-            // if the file is missing, the builder can try re-building the APK and run again
-        }
-
-        Log.d(TAG, rilExtenderDex.getName()+" extracted to "+rilExtenderDex.getAbsolutePath());
-
-        // Make sure readable to the phone process.
-        if (!rilExtenderDex.setReadable(true, false)) {
-            throw new RuntimeException("chmod on dex failed");
-        }
-
-        // Can't be world-writable for security, and has to be writable by the phone
-        // process (even if I dexopt it from here...)
-        // If I put the dexopt'd file beside the .dex, with name .odex, it works; but
-        // gives some warnings in the log, and is not really worth the trouble.
-        // I also don't really like doing this every time, but I think the permissions could
-        // change (for example, backup/restore or something), and I can't see a convenient way
-        // to check the owner, so it's easiest to just set it every time.
-        CMDProcessor.runSuCommand("chown "+phoneUid+":"+phoneUid+" /data/data/net.scintill.simfilereader/app_rilextender-cache");
-    }
-
-    protected Pair<Integer, Integer> getPhonePidUid() {
-        ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
-        for (ActivityManager.RunningAppProcessInfo info : am.getRunningAppProcesses()) {
-            if (info.processName.equalsIgnoreCase("com.android.phone")) {
-                return new Pair<>(info.pid, info.uid);
-            }
-        }
-
-        return null;
-    }
-
     protected Intent makeIntent(String actionSuffix) {
         Intent intent = new Intent("net.scintill.rilextender."+actionSuffix);
         // https://developer.android.com/reference/android/content/Context.html#registerReceiver(android.content.BroadcastReceiver, android.content.IntentFilter)
@@ -379,7 +203,7 @@ public class RilExtenderClient {
         if (resultCode == 0) {
             // 0 means the service did not receive the broadcast
             if (retries < 1) {
-                installServiceAndWait();
+                startServiceAndWait();
             } else {
                 throw new RemoteException("service not responding");
             }
@@ -391,6 +215,52 @@ public class RilExtenderClient {
             // service succeeded
             return true;
         }
+    }
+
+    private void startServiceAndWait() {
+        Log.d(TAG, "Starting RilExtender service");
+
+        final Message signal = Message.obtain();
+        signal.obj = null;
+        HandlerThread handlerThread = new HandlerThread("installServiceAndWait.RilExtenderClient");
+        handlerThread.start();
+        final Handler handler = new Handler(handlerThread.getLooper());
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                mContext.registerReceiver(new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context context, Intent intent) {
+                        synchronized (signal) {
+                            signal.obj = new Boolean(true);
+                            signal.notifyAll();
+                        }
+                    }
+                }, new IntentFilter("net.scintill.rilextender.I_AM_RILEXTENDER"), null, handler);
+
+                Intent intent = new Intent();
+                intent.setComponent(new ComponentName("net.scintill.rilextender", "net.scintill.rilextender.RilExtenderInstaller"));
+                mContext.startService(intent);
+            }
+        });
+
+        synchronized (signal) {
+            if (signal.obj == null) {
+                try {
+                    signal.wait(5000);
+                } catch (InterruptedException e) {
+                    // do nothing
+                }
+            }
+        }
+
+        handlerThread.quit();
+
+        if (signal.obj == null) {
+            signal.recycle();
+            throw new RuntimeException("did not hear from new RilExtender service");
+        }
+        signal.recycle();
     }
 
 }

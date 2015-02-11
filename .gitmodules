@@ -1,3 +1,0 @@
-[submodule "app/src/native/adbi"]
-	path = app/src/native/adbi
-	url = https://github.com/crmulliner/adbi

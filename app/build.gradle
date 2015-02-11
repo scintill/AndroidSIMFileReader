@@ -1,9 +1,8 @@
 apply plugin: 'com.android.application'
 
-def BUILD_TOOLS_VERSION = '19.1.0'
 android {
     compileSdkVersion 19
-    buildToolsVersion BUILD_TOOLS_VERSION
+    buildToolsVersion '19.1.0'
 
     defaultConfig {
         applicationId "net.scintill.simfilereader"
@@ -22,92 +21,8 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_7
         targetCompatibility JavaVersion.VERSION_1_7
     }
-    sourceSets.main.jniLibs.srcDirs = ['build/native/bin']
 }
 
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
-}
-
-// https://stackoverflow.com/questions/21999829/how-do-i-read-properties-defined-in-local-properties-in-build-gradle
-Properties properties = new Properties()
-properties.load(project.rootProject.file('local.properties').newDataInputStream())
-def ndkDir = properties.getProperty('ndk.dir')
-def sdkDir = properties.getProperty('sdk.dir')
-
-task rilExtenderNdkBuild << {
-    // https://stackoverflow.com/questions/16667903/android-studio-gradle-and-ndk
-
-    task("nativeHijackBuild", type: Exec) {
-        commandLine "$ndkDir/ndk-build", '--directory', "$projectDir/src/native/adbi/hijack/jni",
-                "APP_PLATFORM=android-14",
-                "NDK_OUT=$buildDir/native/obj",
-                "NDK_APP_DST_DIR=$buildDir/native/bin/\$(TARGET_ARCH_ABI)"
-        standardOutput = new OutputStream() { public void write(int b) throws IOException {} }
-    }.execute()
-
-    task("nativeInstrumentsBaseBuild", type: Exec) {
-        commandLine "$ndkDir/ndk-build", '--directory', "$projectDir/src/native/adbi/instruments/base/jni",
-                "APP_PLATFORM=android-14",
-                "NDK_OUT=$buildDir/native/obj",
-                "NDK_APP_DST_DIR=$buildDir/native/bin/\$(TARGET_ARCH_ABI)"
-        standardOutput = new OutputStream() { public void write(int b) throws IOException {} }
-    }.execute()
-
-    task("nativeRilInjectBuild", type: Exec) {
-        commandLine "$ndkDir/ndk-build", '--directory', "$projectDir/src/native/rilinject/jni",
-                "APP_PLATFORM=android-14",
-                "NDK_OUT=$buildDir/native/obj",
-                "NDK_APP_DST_DIR=$buildDir/native/bin/\$(TARGET_ARCH_ABI)"
-        standardOutput = new OutputStream() { public void write(int b) throws IOException {} }
-    }.execute()
-
-    // name the hijack binary as a .so -- the packaging stuff will automatically take care of it.
-    task("nativeHijackMangleName", type: Copy) {
-        from file("$buildDir/native/bin/armeabi/hijack")
-        into file("$buildDir/native/bin/armeabi")
-        rename "hijack", "lib__hijack.bin__.so"
-    }.execute()
-}
-
-// https://github.com/creativepsyco/secondary-dex-gradle/
-/*
- * Copyright (c) 2014 Mohit Kanwal.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of this
- * software and associated documentation files (the "Software"), to deal in the Software
- * without restriction, including without limitation the rights to use, copy, modify,
- * merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to the following
- * conditions:
- *
- * The above copyright notice and this permission notice shall be included in all copies or
- * substantial portions of the Software.
- */
-import org.gradle.internal.os.OperatingSystem
-android.applicationVariants.all {
-    variant ->
-        String DEX = "$sdkDir/build-tools/${BUILD_TOOLS_VERSION}/dx"
-        String BUILD_TOOL_DX = OperatingSystem.current().windows ? "${DEX}.bat" : "${DEX}"
-        String ASSET_DIR = "${variant.mergeAssets.outputDir}"
-        String taskRilExtenderDex = "rilExtenderDex${variant.name.capitalize()}"
-        String classDir = "$buildDir/intermediates/classes/${variant.name}"
-
-        // NOTE: rilextender.dex lags behind the rest of the code, for "one build."
-        // First build, it will not be present at all, each subsequent build will have
-        // the compiled code from the last build.
-        //
-        // Probably I'm doing this at the wrong time, but I can't find the right
-        // dependency tree to make this happen -- I get circular dependency errors.
-        // Maybe they thought nobody could ever need compiled assets?
-        task(taskRilExtenderDex, type: Exec, dependsOn: variant.dex) {
-            commandLine "${BUILD_TOOL_DX}", "--dex", "--no-strict",
-            "--output=${ASSET_DIR}/rilextender.dex",
-            "$classDir/net/scintill/rilextender/RilExtender.class",
-            "$classDir/net/scintill/rilextender/RilExtender\$1.class"
-        }
-
-        // Make packaging depend on the above
-        variant.assemble.dependsOn tasks.findByName(taskRilExtenderDex);
-        variant.assemble.dependsOn tasks.findByName("rilExtenderNdkBuild"); // XXX variantize?
 }
