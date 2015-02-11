@@ -25,6 +25,7 @@ import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.AsyncResult;
 import android.os.Build;
 import android.os.Bundle;
@@ -33,6 +34,7 @@ import android.os.HandlerThread;
 import android.os.Message;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.Pair;
 
 import com.SecUpwN.AIMSICD.utils.CMDProcessor;
 import com.SecUpwN.AIMSICD.utils.CommandResult;
@@ -50,6 +52,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.StringReader;
 import java.util.Arrays;
+import java.util.Objects;
 
 public class RilExtenderClient {
 
@@ -123,7 +126,7 @@ public class RilExtenderClient {
         final Message msg = Message.obtain();
         msg.obj = null;
 
-        HandlerThread handlerThread = new HandlerThread("pingSyncTmpThread");
+        HandlerThread handlerThread = new HandlerThread("pingSyncTmpThread.RilExtenderClient");
         handlerThread.start();
         final Handler handler = new Handler(handlerThread.getLooper());
         handler.post(new Runnable() {
@@ -178,25 +181,18 @@ public class RilExtenderClient {
 
     private void installServiceAndWait() {
         boolean shouldInject = false;
-        int phonePid = 0;
-        int phoneUid = 0;
         String libSuffix = "/librilinject.so";
-        String libraryDir = mContext.getApplicationInfo().nativeLibraryDir;
-        String libraryPath = libraryDir + libSuffix;
+        final String libraryDir = mContext.getApplicationInfo().nativeLibraryDir;
+        final String libraryPath = libraryDir + libSuffix;
 
         // We'll remember if we've recently injected it, but maybe the app has restarted since
         // then, so check the actual running process.
-        ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
-        for (ActivityManager.RunningAppProcessInfo info : am.getRunningAppProcesses()) {
-            if (info.processName.equalsIgnoreCase("com.android.phone")) {
-                phonePid = info.pid;
-                phoneUid = info.uid;
-                break;
-            }
-        }
-        if (phonePid == 0) {
+        Pair<Integer, Integer> phonePidUid = getPhonePidUid();
+        if (phonePidUid == null) {
             throw new RuntimeException("unable to locate phone process");
         }
+        final int phonePid = phonePidUid.first;
+        int phoneUid = phonePidUid.second;
 
         if (mInjectedPid == 0 || phonePid != mInjectedPid) {
             try {
@@ -211,22 +207,53 @@ public class RilExtenderClient {
 
             Log.d(TAG, "Installing RilExtender service");
 
-            CommandResult result = CMDProcessor.runSuCommand("logwrapper " + libraryDir + "/lib__hijack.bin__.so -d -p " + phonePid +
-                    " -l " + libraryPath);
+            // XXX race conditions on loading it.. I guess dlopen()'s idempotent behavior makes it not too bad
+            final Message signal = Message.obtain();
+            signal.obj = null;
+            HandlerThread handlerThread = new HandlerThread("installServiceAndWait.RilExtenderClient");
+            handlerThread.start();
+            final Handler handler = new Handler(handlerThread.getLooper());
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    CommandResult result = CMDProcessor.runSuCommand("logwrapper " + libraryDir + "/lib__hijack.bin__.so -d -p " + phonePid +
+                            " -l " + libraryPath);
 
-            if (!result.success()) {
-                throw new RuntimeException("unable to inject phone process: " + result);
+                    if (!result.success()) {
+                        throw new RuntimeException("unable to inject phone process: " + result);
+                    }
+
+                    mInjectedPid = phonePid;
+
+                    mContext.registerReceiver(new BroadcastReceiver() {
+                        @Override
+                        public void onReceive(Context context, Intent intent) {
+                            synchronized (signal) {
+                                signal.obj = new Boolean(true);
+                                signal.notifyAll();
+                            }
+                        }
+                    }, new IntentFilter("net.scintill.rilextender.I_AM_RILEXTENDER"), null, handler);
+                }
+            });
+
+            synchronized (signal) {
+                if (signal.obj == null) {
+                    try {
+                        signal.wait(5000);
+                    } catch (InterruptedException e) {
+                        // do nothing
+                    }
+                }
             }
 
-            mInjectedPid = phonePid;
+            handlerThread.quit();
 
-            try {
-                Thread.sleep(3000);
-            } catch (InterruptedException e) {
-                // ignore
+            if (signal.obj == null) {
+                signal.recycle();
+                throw new RuntimeException("did not hear from new RilExtender service");
             }
-
-            // TODO have the service signal us when it's ready?
+            signal.recycle();
         } else {
             Log.e(TAG, "Library was already injected.");
         }
@@ -314,6 +341,17 @@ public class RilExtenderClient {
         // change (for example, backup/restore or something), and I can't see a convenient way
         // to check the owner, so it's easiest to just set it every time.
         CMDProcessor.runSuCommand("chown "+phoneUid+":"+phoneUid+" /data/data/net.scintill.simfilereader/app_rilextender-cache");
+    }
+
+    protected Pair<Integer, Integer> getPhonePidUid() {
+        ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningAppProcessInfo info : am.getRunningAppProcesses()) {
+            if (info.processName.equalsIgnoreCase("com.android.phone")) {
+                return new Pair<>(info.pid, info.uid);
+            }
+        }
+
+        return null;
     }
 
     protected Intent makeIntent(String actionSuffix) {

@@ -51,8 +51,13 @@
 
 static struct hook_t eph;
 
-#define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "librilinject", __VA_ARGS__)
 #define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, "librilinject", __VA_ARGS__)
+#define ALOGI(...) __android_log_print(ANDROID_LOG_INFO, "librilinject", __VA_ARGS__)
+#if 0
+#define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "librilinject", __VA_ARGS__)
+#else
+#define ALOGD(...)
+#endif
 
 static jclass loadClassFromDex(JNIEnv *env, const char *classNameSlash, const char *classNameDot, const char *dexPath, const char *cachePath) {
 	jclass clTargetClass = (*env)->FindClass(env, classNameSlash);
@@ -112,6 +117,8 @@ static jclass loadClassFromDex(JNIEnv *env, const char *classNameSlash, const ch
 }
 
 static int my_epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout) {
+	ALOGI("my_epoll_wait()");
+
 	int (*orig_epoll_wait)(int epfd, struct epoll_event *events, int maxevents, int timeout);
 	orig_epoll_wait = (void*)eph.orig;
 	// remove hook for epoll_wait
@@ -126,13 +133,17 @@ static int my_epoll_wait(int epfd, struct epoll_event *events, int maxevents, in
 	ALOGD("dvmCreateJNIEnv = %p", dvmCreateJNIEnv);
 	ALOGD("dvmDestroyJNIEnv = %p", dvmDestroyJNIEnv);
 
-	JNIEnv* env = dvmCreateJNIEnv(dvmThreadSelf());
-	ALOGD("JNIEnv* = %p", env);
+	if (dvmThreadSelf && dvmCreateJNIEnv && dvmDestroyJNIEnv) {
+		JNIEnv* env = dvmCreateJNIEnv(dvmThreadSelf());
+		ALOGD("JNIEnv* = %p", env);
 
-	loadClassFromDex(env, "net/scintill/rilextender/RilExtender", "net.scintill.rilextender.RilExtender",
-        "/data/data/net.scintill.simfilereader/app_rilextender/rilextender.dex", "/data/data/net.scintill.simfilereader/app_rilextender-cache");
+		loadClassFromDex(env, "net/scintill/rilextender/RilExtender", "net.scintill.rilextender.RilExtender",
+			"/data/data/net.scintill.simfilereader/app_rilextender/rilextender.dex", "/data/data/net.scintill.simfilereader/app_rilextender-cache");
 
-	dvmDestroyJNIEnv(env);
+		dvmDestroyJNIEnv(env);
+	} else {
+		ALOGE("error finding libdvm funcs: %p %p %p", dvmThreadSelf, dvmCreateJNIEnv, dvmDestroyJNIEnv);
+	}
 
 	// call original function
 	int res = orig_epoll_wait(epfd, events, maxevents, timeout);
@@ -141,13 +152,12 @@ static int my_epoll_wait(int epfd, struct epoll_event *events, int maxevents, in
 
 
 static void my_log(char *msg) {
-	if (1)
-		ALOGD("%s", msg);
+	ALOGD("%s", msg);
 }
 
 // entry point when this library is loaded
 void __attribute__ ((constructor)) my_init() {
-	ALOGD("initializing");
+	ALOGI("my_init()");
 
 	// set log function for libbase
 	set_logfunction(my_log);

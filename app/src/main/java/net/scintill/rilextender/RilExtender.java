@@ -31,6 +31,8 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
 import android.util.Log;
+import android.view.Gravity;
+import android.widget.Toast;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -265,6 +267,13 @@ public class RilExtender implements Handler.Callback {
         mContext.registerReceiver(receiver, new IntentFilter("net.scintill.rilextender.ping"), PERMISSION_ID, null);
         mContext.registerReceiver(receiver, new IntentFilter("net.scintill.rilextender.oemrilrequeststrings"), PERMISSION_ID, null);
         mContext.registerReceiver(receiver, new IntentFilter("net.scintill.rilextender.oemrilrequestraw"), PERMISSION_ID, null);
+
+        // Raise a toast
+        Toast toast = Toast.makeText(mContext, "RilExtender active", Toast.LENGTH_SHORT);
+        toast.setGravity(Gravity.TOP | Gravity.RIGHT, 0, 0);
+        toast.show();
+
+        mContext.sendBroadcast(new Intent("net.scintill.rilextender.I_AM_RILEXTENDER"));
     }
 
     private static final String PERMISSION_ID = "net.scintill.simio.RILEXTENDER_CLIENT";
