@@ -19,7 +19,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package net.scintill.simio;
+package net.scintill.rilextender;
 
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
@@ -28,7 +28,10 @@ import android.content.Intent;
 import android.os.AsyncResult;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Message;
+import android.os.RemoteException;
 import android.util.Log;
 
 import com.SecUpwN.AIMSICD.utils.CMDProcessor;
@@ -63,12 +66,16 @@ public class RilExtenderClient {
 
         mInjectedPid = 0;
         mContext = context;
-
-        installServiceAndWait();
     }
 
-    public void iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid, final Message
-            result) {
+    public void iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid, Message result) {
+        iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid, result, 0);
+    }
+
+    private void iccIOForApp(final int command, final int fileid, final String path, final int p1,
+        final int p2, final int p3, final String data, final String pin2, final String aid,
+        final Message result, final int retries) {
+
         Log.d(TAG, "iccIOForApp out "+command+" "+fileid+" "+path+" "+p1+" "+p2+" "+p3+" "+data+" "+pin2+" "+aid);
 
         Intent intent = makeIntent("iccio");
@@ -86,38 +93,64 @@ public class RilExtenderClient {
             @Override
             public void onReceive(Context context, Intent intent) {
                 Log.d(TAG, "onReceive "+intent);
-                // XXX error handling?
-                byte[] payloadBytes = getResultExtras(false).getByteArray("return");
-                IccIoResult iccIoResult;
-                int sw1 = payloadBytes[0] & 0xff;
-                int sw2 = payloadBytes[1] & 0xff;
-                payloadBytes = Arrays.copyOfRange(payloadBytes, 2, payloadBytes.length);
+                try {
+                    if (preprocResponse(getResultCode(), getResultExtras(false), retries)) {
+                        byte[] payloadBytes = getResultExtras(false).getByteArray("return");
+                        IccIoResult iccIoResult;
+                        int sw1 = payloadBytes[0] & 0xff;
+                        int sw2 = payloadBytes[1] & 0xff;
+                        payloadBytes = Arrays.copyOfRange(payloadBytes, 2, payloadBytes.length);
 
-                Log.d(TAG, "iccIO result=" + sw1 + " " + sw2 + " " + IccUtils.bytesToHexString(payloadBytes));
+                        Log.d(TAG, "iccIO result=" + sw1 + " " + sw2 + " " + IccUtils.bytesToHexString(payloadBytes));
 
-                iccIoResult = new IccIoResult(sw1, sw2, payloadBytes);
+                        iccIoResult = new IccIoResult(sw1, sw2, payloadBytes);
 
-                AsyncResult.forMessage(result, iccIoResult, null);
-                result.sendToTarget();
+                        AsyncResult.forMessage(result, iccIoResult, null);
+                        result.sendToTarget();
+                    } else {
+                        iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid, result, retries + 1);
+                    }
+                } catch (Throwable t) {
+                    AsyncResult.forMessage(result, null, t);
+                    result.sendToTarget();
+                }
             }
         });
     }
 
-    public Bundle pingSyncNotOnMainThread() {
-        Intent intent = makeIntent("ping");
+    public Bundle pingSync() throws RemoteException {
+        final Intent intent = makeIntent("ping");
         final Message msg = Message.obtain();
         msg.obj = null;
-        Log.d(TAG, "pingSync "+Thread.currentThread().getName());
 
-        sendIntent(intent, new BroadcastReceiver() {
+        HandlerThread handlerThread = new HandlerThread("pingSyncTmpThread");
+        handlerThread.start();
+        final Handler handler = new Handler(handlerThread.getLooper());
+        handler.post(new Runnable() {
             @Override
-            public void onReceive(Context context, Intent intent) {
-                Log.d(TAG, "pingSync onReceive");
-                // this should be on the main thread, the outer method is not
-                synchronized (msg) {
-                    msg.obj = getResultExtras(false).clone();
-                    msg.notifyAll();
-                }
+            public void run() {
+                sendIntent(intent, new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context context, Intent intent) {
+                        Log.d(TAG, "pingSync onReceive");
+                        try {
+                            if (preprocResponse(getResultCode(), getResultExtras(false), 0)) {
+                                // this is on the main thread, the outer method is not
+                                synchronized (msg) {
+                                    msg.obj = getResultExtras(false).clone();
+                                    msg.notifyAll();
+                                }
+                            } else {
+                                throw new RemoteException("wasn't initialized");
+                            }
+                        } catch (RemoteException e) {
+                            synchronized (msg) {
+                                msg.obj = e;
+                                msg.notifyAll();
+                            }
+                        }
+                    }
+                }, handler);
             }
         });
 
@@ -130,6 +163,13 @@ public class RilExtenderClient {
                 return null;
             }
         }
+
+        handlerThread.quit();
+
+        if (msg.obj instanceof RemoteException) {
+            throw (RemoteException) msg.obj;
+        }
+
         Log.d(TAG, "pingSync exit");
         Bundle bundle = (Bundle)msg.obj;
         msg.recycle();
@@ -291,6 +331,28 @@ public class RilExtenderClient {
 
     protected void sendIntent(Intent intent, BroadcastReceiver receiver) {
         mContext.sendOrderedBroadcast(intent, null, receiver, null, 0, null, null);
+    }
+
+    protected void sendIntent(Intent intent, BroadcastReceiver receiver, Handler handler) {
+        mContext.sendOrderedBroadcast(intent, null, receiver, handler, 0, null, null);
+    }
+
+    protected boolean preprocResponse(int resultCode, Bundle extras, int retries) throws RemoteException {
+        if (resultCode == 0) {
+            // 0 means the service did not receive the broadcast
+            if (retries < 1) {
+                installServiceAndWait();
+            } else {
+                throw new RemoteException("service not responding");
+            }
+            return false;
+        } else if (resultCode == -1) {
+            // service sent an exception
+            throw new RemoteException(extras.getString("exception"));
+        } else {
+            // service succeeded
+            return true;
+        }
     }
 
 }

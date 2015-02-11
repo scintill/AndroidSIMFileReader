@@ -103,11 +103,8 @@ android.applicationVariants.all {
         task(taskRilExtenderDex, type: Exec, dependsOn: variant.dex) {
             commandLine "${BUILD_TOOL_DX}", "--dex", "--no-strict",
             "--output=${ASSET_DIR}/rilextender.dex",
-            "$classDir/net/scintill/simio/RilExtender.class",
-            "$classDir/net/scintill/simio/RilExtender\$1.class",
-            "$classDir/net/scintill/simio/IRilExtender.class",
-            "$classDir/net/scintill/simio/IRilExtender\$Stub\$Proxy.class",
-            "$classDir/net/scintill/simio/IRilExtender\$Stub.class"
+            "$classDir/net/scintill/rilextender/RilExtender.class",
+            "$classDir/net/scintill/rilextender/RilExtender\$1.class"
         }
 
         // Make packaging depend on the above

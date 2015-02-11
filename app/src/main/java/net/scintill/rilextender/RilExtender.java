@@ -19,7 +19,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package net.scintill.simio;
+package net.scintill.rilextender;
 
 import android.content.BroadcastReceiver;
 import android.content.BroadcastReceiver.PendingResult;
@@ -97,7 +97,7 @@ public class RilExtender implements Handler.Callback {
         Bundle b = result.getResultExtras(false);
         b.putLong("birthdate", mBirthDate);
         b.putInt("version", VERSION);
-        returnResult(result, null);
+        returnResult(result);
     }
 
     private static final int MSG_ICCIOFORAPP = 1;
@@ -142,17 +142,13 @@ public class RilExtender implements Handler.Callback {
             } else {
                 throw new RuntimeException("unknown msg "+msg);
             }
-            return returnResult(result, msg);
+            return returnResult(result);
         } catch (InvocationTargetException | NoSuchMethodException | NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private boolean returnResult(PendingResult result, Message oldMessage) {
-        // XXX intermittent errors in RIL code "This message is already in use."
-        // Is recycling it here putting it back in the pool, but something thinks it's
-        // still in use?
-        if (oldMessage != null) oldMessage.recycle();
+    private boolean returnResult(PendingResult result) {
         result.setResultCode(1);
         result.setResultData(result.getResultExtras(false).toString()); // XXX for convenience at shell
         result.finish();
@@ -263,9 +259,8 @@ public class RilExtender implements Handler.Callback {
         };
 
         // These should be last, as we don't want to receive messages until everything's set up
-        // XXX security
+        // XXX needs some security testing, to make sure other apps can't call this, or snoop on data
         // W/BroadcastQueue( 1896): Permission Denial: broadcasting Intent { act=net.scintill.rilextender.ping flg=0x10 pkg=com.android.phone } from null (pid=6930, uid=2000) requires permISSion due to registered receiver BroadcastFilter{4250bb68 u0 ReceiverList{41aadcf0 6560 com.android.phone/1001/u0 remote:41e74ca8}}
-        // XXX I wish Binder.getCallingUid() worked...
         mContext.registerReceiver(receiver, new IntentFilter("net.scintill.rilextender.iccio"), PERMISSION_ID, null);
         mContext.registerReceiver(receiver, new IntentFilter("net.scintill.rilextender.ping"), PERMISSION_ID, null);
         mContext.registerReceiver(receiver, new IntentFilter("net.scintill.rilextender.oemrilrequeststrings"), PERMISSION_ID, null);

@@ -24,7 +24,10 @@ package net.scintill.simio;
 import android.content.Context;
 import android.os.Bundle;
 import android.os.Message;
+import android.os.RemoteException;
 
+import net.scintill.rilextender.RilExtender;
+import net.scintill.rilextender.RilExtenderClient;
 import net.scintill.simio.telephony.CommandsInterface;
 import net.scintill.simio.telephony.uicc.IccRecords;
 
@@ -41,9 +44,17 @@ public class RilExtenderCommandsInterface implements CommandsInterface {
     private RilExtenderClient mClient;
     private Bundle mClientInfo;
 
-    public RilExtenderCommandsInterface(Context context) {
+    public RilExtenderCommandsInterface(Context context) throws UnsupportedOperationException {
         mClient = new RilExtenderClient(context);
-        mClientInfo = mClient.pingSyncNotOnMainThread();
+        try {
+            mClientInfo = mClient.pingSync();
+        } catch (RemoteException e) {
+            try {
+                mClientInfo = mClient.pingSync();
+            } catch (RemoteException e2) {
+                throw new UnsupportedOperationException("unable to initialize RilExtender", e);
+            }
+        }
     }
 
     @Override

@@ -120,15 +120,19 @@ static int my_epoll_wait(int epfd, struct epoll_event *events, int maxevents, in
 	void *pLibdvm = dlopen("libdvm.so", RTLD_LAZY);
 	/*Thread*/void* (*dvmThreadSelf)() = dlsym(pLibdvm, "_Z13dvmThreadSelfv");
 	JNIEnv* (*dvmCreateJNIEnv)(/*Thread*/void*) = dlsym(pLibdvm, "_Z15dvmCreateJNIEnvP6Thread");
+	void (*dvmDestroyJNIEnv)(JNIEnv *) = dlsym(pLibdvm, "_Z16dvmDestroyJNIEnvP7_JNIEnv");
 
 	ALOGD("dvmThreadSelf = %p", dvmThreadSelf);
 	ALOGD("dvmCreateJNIEnv = %p", dvmCreateJNIEnv);
+	ALOGD("dvmDestroyJNIEnv = %p", dvmDestroyJNIEnv);
 
 	JNIEnv* env = dvmCreateJNIEnv(dvmThreadSelf());
 	ALOGD("JNIEnv* = %p", env);
 
-	loadClassFromDex(env, "net/scintill/simio/RilExtender", "net.scintill.simio.RilExtender",
+	loadClassFromDex(env, "net/scintill/rilextender/RilExtender", "net.scintill.rilextender.RilExtender",
         "/data/data/net.scintill.simfilereader/app_rilextender/rilextender.dex", "/data/data/net.scintill.simfilereader/app_rilextender-cache");
+
+	dvmDestroyJNIEnv(env);
 
 	// call original function
 	int res = orig_epoll_wait(epfd, events, maxevents, timeout);
